@@ -1,0 +1,200 @@
+/* JG Hub — Deep Sea + sunset accents */
+:root {
+  --bg: #001219;
+  --sea-deep: #005F73;
+  --sea: #0A9396;
+  --foam: #94D2BD;
+  --sunset: #EE9B00;
+  --sunset-mid: #CA6702;
+  --sunset-hot: #BB3E03;
+  --ember: #AE2012;
+  --ink: #E9F5F2;
+  --muted: #94D2BD;
+  --done: #8A8F8C;
+  --go: #2A9D8F;
+  --stop: #AE2012;
+  --tile-label: #E7F3EF;
+  --caption: rgba(148, 210, 189, 0.75);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: Figtree, "Trebuchet MS", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(10, 147, 150, 0.18), transparent 55%),
+    radial-gradient(900px 420px at 100% 0%, rgba(238, 155, 0, 0.10), transparent 50%),
+    var(--bg);
+}
+
+.wrap {
+  width: min(1120px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0 64px;
+}
+
+header.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.tagline {
+  color: var(--caption);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+section.board {
+  margin-bottom: 36px;
+}
+
+section.board h2 {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--foam);
+  margin: 0 4px 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px 10px;
+  list-style: none;
+}
+
+@media (min-width: 720px) {
+  .grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1080px) {
+  .grid { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: inherit;
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.tile:active, .tile.sortable-chosen { cursor: grabbing; }
+
+.icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 10px 20px rgba(0, 18, 25, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.tile:hover .icon,
+.tile:focus-visible .icon {
+  transform: translateY(-2px) scale(1.03);
+  box-shadow:
+    0 14px 24px rgba(0, 18, 25, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+.tile:focus-visible {
+  outline: none;
+}
+
+.tile:focus-visible .icon {
+  outline: 2px solid var(--sunset);
+  outline-offset: 3px;
+}
+
+.icon svg {
+  width: 36px;
+  height: 36px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  line-height: 1.2;
+  color: var(--tile-label);
+  max-width: 92px;
+}
+
+.caption {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--caption);
+  text-align: center;
+  line-height: 1.2;
+  max-width: 96px;
+  margin-top: -4px;
+}
+
+/* Tile palettes */
+.icon.claudio { background: linear-gradient(160deg, #0A9396, #005F73); }
+.icon.taskpro { background: linear-gradient(160deg, #94D2BD, #0A9396); }
+.icon.messages { background: linear-gradient(160deg, #EE9B00, #CA6702); }
+.icon.hue { background: linear-gradient(160deg, #EE9B00, #BB3E03); }
+.icon.ring { background: linear-gradient(160deg, #005F73, #001219 85%); border: 1px solid rgba(148, 210, 189, 0.25); }
+
+.icon.taskpro svg { stroke: #001219; }
+
+.sortable-ghost { opacity: 0.35; }
+.sortable-drag { opacity: 1; }
+
+footer {
+  margin-top: 48px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(148, 210, 189, 0.18);
+  text-align: center;
+}
+
+footer a {
+  color: var(--foam);
+  font-weight: 600;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+footer a:hover,
+footer a:focus-visible {
+  color: var(--sunset);
+  border-bottom-color: var(--sunset);
+  outline: none;
+}
+
+@media (max-width: 420px) {
+  .icon { width: 66px; height: 66px; border-radius: 18px; }
+  .icon svg { width: 32px; height: 32px; }
+}
