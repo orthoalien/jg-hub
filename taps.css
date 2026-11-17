@@ -1,0 +1,120 @@
+/* Invisalign taps board: Deep Sea + sunset accents. Grey = done, never green. */
+.icon.taps { background: linear-gradient(160deg, #6B3FD4, #005F73 80%); }
+
+html.taps-lock, html.taps-lock body { overflow: hidden; }
+
+.taps-overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: none;
+  background: rgba(0, 18, 25, 0.72);
+  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+}
+.taps-overlay.open { display: block; }
+
+.taps-panel {
+  width: min(760px, 100%);
+  height: 100%;
+  margin: 0 auto;
+  display: flex; flex-direction: column;
+  background: #04202A;
+  border-left: 1px solid rgba(148, 210, 189, 0.14);
+  border-right: 1px solid rgba(148, 210, 189, 0.14);
+  padding-top: env(safe-area-inset-top);
+}
+
+.taps-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  padding: 18px 18px 12px;
+  border-bottom: 1px solid rgba(148, 210, 189, 0.14);
+}
+.taps-head h2 { font-size: 1.3rem; font-weight: 700; letter-spacing: -0.02em; color: var(--ink); }
+.taps-status { color: var(--caption); font-size: 0.85rem; margin-top: 2px; }
+.taps-status.warn { color: var(--sunset); }
+.taps-head-btns { display: flex; gap: 8px; }
+.taps-icon-btn {
+  width: 38px; height: 38px; border-radius: 12px; border: 1px solid rgba(148, 210, 189, 0.25);
+  background: rgba(10, 147, 150, 0.12); color: var(--ink); font-size: 1.05rem; cursor: pointer;
+}
+.taps-icon-btn:hover, .taps-icon-btn:focus-visible { border-color: var(--sunset); outline: none; }
+
+.taps-body {
+  flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  padding: 14px 14px 24px;
+}
+.taps-legend {
+  padding: 10px 18px calc(12px + env(safe-area-inset-bottom));
+  font-size: 0.74rem; color: var(--caption);
+  border-top: 1px solid rgba(148, 210, 189, 0.14);
+}
+
+.tap-group { margin-bottom: 14px; }
+.tap-group > summary {
+  list-style: none; cursor: pointer;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.76rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--foam); padding: 8px 4px;
+}
+.tap-group > summary::-webkit-details-marker { display: none; }
+.tap-group > summary::before { content: "\25B8"; color: var(--sunset); transition: transform 0.15s; }
+.tap-group[open] > summary::before { transform: rotate(90deg); }
+.tap-group .count {
+  font-size: 0.7rem; letter-spacing: 0; padding: 1px 8px; border-radius: 999px;
+  background: rgba(148, 210, 189, 0.14); color: var(--ink);
+}
+.tap-empty { color: var(--caption); font-size: 0.85rem; padding: 4px 8px 8px; }
+
+.tap-row {
+  display: flex; gap: 12px;
+  background: rgba(10, 147, 150, 0.07);
+  border: 1px solid rgba(148, 210, 189, 0.16);
+  border-radius: 14px; padding: 12px; margin-bottom: 10px;
+}
+.tap-row.answered, .tap-row.bar-done { opacity: 0.72; }
+.tap-bar { width: 6px; border-radius: 3px; flex-shrink: 0; background: var(--sunset); }
+.bar-stop .tap-bar { background: #D8452F; }
+.bar-wait .tap-bar { background: #EE9B00; }
+.bar-go .tap-bar { background: #2A9D8F; }
+.bar-done .tap-bar { background: #8A8F8C; }
+.bar-purple .tap-bar { background: #7B4FE0; }
+.tap-main { flex: 1; min-width: 0; }
+.tap-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tap-name { font-weight: 700; color: var(--ink); font-size: 1rem; }
+.tap-star { color: #A78BFA; font-size: 1.25rem; line-height: 1; }
+.pill {
+  font-size: 0.66rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: rgba(238, 155, 0, 0.16); color: #FFC56B;
+}
+.pill.stop { background: rgba(216, 69, 47, 0.2); color: #FF9A86; }
+.pill.purple { background: rgba(123, 79, 224, 0.25); color: #CDBBFF; }
+.pill.done { background: rgba(138, 143, 140, 0.25); color: #D5D8D6; }
+.tap-meta { color: var(--caption); font-size: 0.8rem; margin-top: 2px; }
+.tap-reason { color: #CFE6E0; font-size: 0.92rem; margin-top: 4px; line-height: 1.35; }
+
+.tap-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.tap-btn {
+  font: inherit; font-size: 0.86rem; font-weight: 600;
+  min-height: 36px; padding: 6px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(148, 210, 189, 0.3); background: rgba(0, 18, 25, 0.4); color: var(--ink);
+  touch-action: manipulation;
+}
+.tap-btn.primary { background: linear-gradient(160deg, #EE9B00, #CA6702); border-color: transparent; color: #001219; }
+.tap-btn:hover, .tap-btn:focus-visible { border-color: var(--sunset); outline: none; }
+.tap-btn:active { transform: translateY(1px); }
+.tap-open { color: var(--foam); font-size: 0.86rem; font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(148, 210, 189, 0.4); margin-left: 4px; }
+.tap-open:hover { color: var(--sunset); border-bottom-color: var(--sunset); }
+.tap-picked { font-weight: 700; color: #D5D8D6; font-size: 0.88rem; }
+.tap-pending {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 999px; background: rgba(238, 155, 0, 0.16); color: #FFC56B;
+}
+.tap-pending.ok { background: rgba(138, 143, 140, 0.25); color: #D5D8D6; }
+.tap-link { font: inherit; font-size: 0.8rem; background: none; border: 0; color: var(--caption); text-decoration: underline; cursor: pointer; }
+
+.tap-gate { text-align: center; padding: 48px 16px; }
+.tap-gate h3 { font-size: 1.15rem; margin-bottom: 8px; color: var(--ink); }
+.tap-gate p { color: var(--caption); max-width: 420px; margin: 0 auto 18px; line-height: 1.4; }
+.tap-cid { display: flex; gap: 8px; max-width: 460px; margin: 0 auto; }
+.tap-cid input {
+  flex: 1; min-width: 0; font: inherit; font-size: 0.85rem; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid rgba(148, 210, 189, 0.3); background: rgba(0, 18, 25, 0.5); color: var(--ink);
+}
