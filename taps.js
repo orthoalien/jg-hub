@@ -29,6 +29,16 @@
     return n;
   }
 
+  /* CSS.escape is missing on some older iPad Safari / WebViews. */
+  function cssEsc(s) {
+    s = String(s);
+    if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(s);
+    return s.replace(/[^a-zA-Z0-9_-]/g, function (ch) {
+      var hex = ch.charCodeAt(0).toString(16).toUpperCase();
+      return "\\" + hex + " ";
+    });
+  }
+
   /* ---------- token ---------- */
   function savedToken() {
     try {
@@ -98,6 +108,7 @@
 
   function rowsToObjects(values) {
     if (!values || !values.length) return [];
+    if (!values[0] || typeof values[0].map !== "function") throw new Error("Unexpected sheet response");
     var head = values[0].map(function (h) { return String(h).trim(); });
     return values.slice(1).filter(function (r) { return r.some(function (c) { return String(c).trim() !== ""; }); })
       .map(function (r, i) {
@@ -108,8 +119,17 @@
   }
 
   var lastChecked = null;
+  function batchGetPath(a, b) {
+    return "/values:batchGet?ranges=" + encodeURIComponent(a) + "&ranges=" + encodeURIComponent(b) + "&majorDimension=ROWS";
+  }
+  /* Prefer A1:Y so we do not pull unused columns. If that range 400s
+     (grid smaller than column Y, or a tab-name parse error), retry the
+     whole Items and Answers tabs, which stay in-grid. */
   function load() {
-    return api("/values:batchGet?ranges=Items!A1:Y&ranges=Answers!A1:F&majorDimension=ROWS").then(function (d) {
+    return api(batchGetPath("Items!A1:Y", "Answers!A1:F")).catch(function (err) {
+      if (err && err.status === 400) return api(batchGetPath("Items", "Answers"));
+      throw err;
+    }).then(function (d) {
       var vr = d.valueRanges || [];
       items = rowsToObjects(vr[0] && vr[0].values);
       answers = rowsToObjects(vr[1] && vr[1].values);
@@ -217,6 +237,9 @@
   /* Parse "Fri 11/20", "11/30 2:00 PM", "Mon 11/30 2:00 PM", "2026-11-30 14:00", "12/7 RUSH".
      Weekday is computed from the date (M T W R F S U). Year is inferred when missing. */
   function parseMD(raw) {
+    try { return parseMDInner(raw); } catch (e) { try { console.error("iTap board parseMD", e); } catch (e2) {} return null; }
+  }
+  function parseMDInner(raw) {
     var str = String(raw || "").trim();
     if (!str) return null;
     var time = "", rest = "";
@@ -337,7 +360,30 @@
     statusEl.className = "taps-status" + (tone ? " " + tone : "");
   }
 
+  /* Status-line detail only: HTTP status + Google error.message, or e.name/e.message.
+     Never dump response bodies or cell values (those can contain PHI). */
+  function googleMessage(text) {
+    if (text == null || text === "") return "";
+    try {
+      var j = typeof text === "string" ? JSON.parse(text) : text;
+      var m = j && j.error && j.error.message;
+      if (m) return String(m).replace(/\s+/g, " ").trim().slice(0, 180);
+    } catch (e) {}
+    return "";
+  }
+  function describeError(err) {
+    if (!err) return "";
+    if (typeof err.status === "number") {
+      var g = googleMessage(err.text);
+      return "Google " + err.status + (g ? ": " + g : "");
+    }
+    var n = err.name ? String(err.name) : "";
+    var m = err.message != null ? String(err.message).replace(/\s+/g, " ").trim().slice(0, 180) : "";
+    if (n && m) return n + ": " + m;
+    return n || m;
+  }
   function handleError(err, fallback) {
+    try { console.error("iTap board", err); } catch (e) {}
     var s = err && err.status;
     if (s === 401) { dropToken(); setStatus("Google sign-in expired. Tap any button to unlock again.", "warn"); return; }
     if (s === 403 || s === 404) {
@@ -345,7 +391,9 @@
       showGate("wrong", "This Google account can't open the iTap board. Use " + CFG.account + ".");
       return;
     }
-    setStatus(fallback || "Couldn't reach Google. Check the connection and try again.", "warn");
+    var base = fallback || "Couldn't reach Google. Check the connection and try again.";
+    var detail = describeError(err);
+    setStatus(detail ? base + " " + detail : base, "warn");
   }
 
   function row(it) {
@@ -508,7 +556,7 @@
         if (modifyDraft[key] == null) modifyDraft[key] = { text: "", choice: ORDER };
         cardOpen[key] = true;
         render();
-        var box = body.querySelector('.tap-note-input[data-key="' + CSS.escape(key) + '"]');
+        var box = body.querySelector('.tap-note-input[data-key="' + cssEsc(key) + '"]');
         if (box) box.focus();
       });
       acts.appendChild(ob);
@@ -523,7 +571,7 @@
             if (modifyDraft[key] == null) modifyDraft[key] = { text: "", choice: MODIFY };
             cardOpen[key] = true;
             render();
-            var box = body.querySelector('.tap-note-input[data-key="' + CSS.escape(key) + '"]');
+            var box = body.querySelector('.tap-note-input[data-key="' + cssEsc(key) + '"]');
             if (box) box.focus();
           });
         } else {
@@ -733,7 +781,7 @@
     var chk = lastChecked ? lastChecked.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) : "";
     setStatus(open + " waiting on you" + (when ? " \u00b7 list as of " + when + " ET" : "") + (chk ? " \u00b7 checked " + chk : ""));
     if (keep) {
-      var box = body.querySelector('[data-key="' + CSS.escape(String(keep.k)) + '"], [data-keep="' + CSS.escape(String(keep.k)) + '"]');
+      var box = body.querySelector('[data-key="' + cssEsc(String(keep.k)) + '"], [data-keep="' + cssEsc(String(keep.k)) + '"]');
       if (box) { box.focus(); try { if (box.setSelectionRange) box.setSelectionRange(keep.s, keep.e); } catch (e) {} }
     }
   }
@@ -798,7 +846,7 @@
     return new Promise(function (resolve, reject) {
       if (window.html2canvas) { resolve(window.html2canvas); return; }
       var s = document.createElement("script");
-      s.src = "html2canvas.min.js?v=20261119g";
+      s.src = "html2canvas.min.js?v=20261119h";
       s.onload = function () { window.html2canvas ? resolve(window.html2canvas) : reject(new Error("html2canvas missing")); };
       s.onerror = function () { reject(new Error("Could not load capture library")); };
       document.head.appendChild(s);
