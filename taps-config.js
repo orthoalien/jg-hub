@@ -1,4 +1,4 @@
-/* Invisalign taps board config. No patient data lives here.
+/* iTap board config. No patient data lives here.
    clientId: the Google OAuth Web client ID Greenie creates once (public by design).
    sheetId:  the private "Tap Board" Google Sheet. The ID alone opens nothing:
              Google only serves it to a signed-in account it is shared with. */

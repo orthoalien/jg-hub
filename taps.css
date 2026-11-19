@@ -1,4 +1,4 @@
-/* Invisalign taps board: Deep Sea + sunset accents. Grey = done, never green. */
+/* iTap board: Deep Sea + sunset accents. Grey = done, never green. */
 .icon.taps { background: linear-gradient(160deg, #6B3FD4, #005F73 80%); }
 
 html.taps-lock, html.taps-lock body { overflow: hidden; }
@@ -39,14 +39,8 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
 
 .taps-body {
   flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
-  padding: 14px 14px 24px;
+  padding: 14px 14px calc(24px + env(safe-area-inset-bottom));
 }
-.taps-legend {
-  padding: 10px 18px calc(12px + env(safe-area-inset-bottom));
-  font-size: 0.74rem; color: var(--caption);
-  border-top: 1px solid rgba(148, 210, 189, 0.14);
-}
-
 .tap-group { margin-bottom: 14px; }
 .tap-group > summary {
   list-style: none; cursor: pointer;
@@ -154,7 +148,7 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
 .taps-star-btn.star-red { color: #F87171; }
 .taps-star-btn.star-none, .tap-star.star-none { color: #C3C8C5; }
 
-/* Name line: appointment (or DD / due date) right after the star */
+/* Name line: appointment (or dd / due date) right after the star */
 .tap-when { font-size: 0.82rem; font-weight: 700; color: #FFC56B; }
 .tap-when.dd { color: var(--caption); }
 
@@ -180,20 +174,130 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
 .tap-note-shown { margin-top: 6px; font-size: 0.9rem; color: var(--ink); }
 
 /* Section header bands: each section gets its own solid color + matching thin top border.
-   Card status bars (red/orange/green/grey) are unchanged. */
-.tap-group { --sec: #0F6E7A; border-top: 3px solid var(--sec); border-radius: 4px 4px 0 0; padding-top: 0; }
-.tap-group[data-key="tap"] { --sec: #0F6E7A; }
-.tap-group[data-key="in_progress"] { --sec: #4B4FA8; }
-.tap-group[data-key="manufacturing"] { --sec: #3D5A80; }
-.tap-group[data-key="shipped"] { --sec: #C8742B; }
+   Card status bars (red/orange/green/grey) are unchanged. --reserved is unused. */
+.tap-group {
+  --sec: #D9772B; --sec-ink: #2B2118; --reserved: #6B4E8F;
+  border-top: 3px solid var(--sec); border-radius: 4px 4px 0 0; padding-top: 0;
+}
+.tap-group[data-key="scan"] { --sec: #C0453A; --sec-ink: #FFFFFF; }
+.tap-group[data-key="tap"] { --sec: #D9772B; --sec-ink: #2B2118; }
+.tap-group[data-key="in_progress"] { --sec: #D6A23A; --sec-ink: #2B2118; }
+.tap-group[data-key="manufacturing"] { --sec: #6E9A4E; --sec-ink: #2B2118; }
+.tap-group[data-key="shipped"] { --sec: #3F6E9A; --sec-ink: #FFFFFF; }
 .tap-group > summary {
-  background: var(--sec); color: #FFFFFF;
+  background: var(--sec); color: var(--sec-ink);
   padding: 9px 12px; margin-bottom: 10px; border-radius: 0 0 10px 10px;
 }
-.tap-group > summary::before { color: #FFFFFF; }
-.tap-group > summary .count { background: rgba(255, 255, 255, 0.22); color: #FFFFFF; }
+.tap-group > summary::before { color: var(--sec-ink); }
+.tap-group > summary .count { background: rgba(255, 255, 255, 0.22); color: var(--sec-ink); }
 
 /* Fixed 4-line layout on Manufacturing + Shipped/Delivered cards (full contrast) */
 .tap-lines { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem; color: var(--ink); }
 .tap-line-label { color: #B9DCD2; font-weight: 700; }
 .tap-delivered { vertical-align: 1px; text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
+
+/* Collapsed cards: only the top line shows until tapped */
+.tap-top {
+  cursor: pointer;
+  width: 100%;
+  background: none; border: 0; padding: 0;
+  font: inherit; color: inherit; text-align: left;
+}
+.tap-top:focus-visible { outline: 2px solid var(--sunset); outline-offset: 2px; border-radius: 8px; }
+.tap-chevron {
+  color: var(--foam); font-size: 0.85rem; line-height: 1;
+  transition: transform 0.15s; flex-shrink: 0;
+}
+.tap-row.open .tap-chevron { transform: rotate(90deg); }
+.tap-row:not(.open) .tap-body { display: none; }
+.tap-scanned { color: var(--ink); font-size: 0.88rem; margin-top: 6px; }
+
+/* + Add patient lives in the section header and must not look like a card button */
+.tap-add-btn {
+  font: inherit; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; text-transform: none;
+  margin-left: auto; min-height: 32px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(255, 255, 255, 0.16); color: #FFFFFF;
+  touch-action: manipulation;
+}
+.tap-add-btn:hover, .tap-add-btn:focus-visible { background: rgba(255, 255, 255, 0.28); outline: none; }
+.tap-add-form {
+  display: flex; flex-direction: column; gap: 8px;
+  background: rgba(10, 147, 150, 0.07);
+  border: 1px solid rgba(148, 210, 189, 0.16);
+  border-radius: 14px; padding: 12px; margin-bottom: 10px;
+}
+.tap-add-input, input.tap-add-input {
+  width: 100%; font: inherit; font-size: 16px;
+  line-height: 1.35; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid rgba(148, 210, 189, 0.3); background: rgba(0, 18, 25, 0.5); color: var(--ink);
+}
+.tap-add-input:focus { outline: none; border-color: var(--sunset); }
+
+/* Markup button + drawing overlay (iPad Safari: touch-action none) */
+.taps-markup-btn { width: auto; padding: 0 10px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; }
+.taps-markup {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; flex-direction: column;
+  background: #001219;
+  touch-action: none;
+  overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none;
+  padding-top: env(safe-area-inset-top);
+}
+.taps-markup-tools {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 10px 12px; flex-shrink: 0;
+  border-bottom: 1px solid rgba(148, 210, 189, 0.14);
+  touch-action: manipulation;
+}
+.taps-markup-tool.active { box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.55); }
+.taps-markup-color {
+  width: 36px; height: 36px; border-radius: 50%; cursor: pointer; padding: 0;
+  border: 2px solid rgba(233, 245, 242, 0.35);
+  touch-action: manipulation;
+}
+.taps-markup-color.active { box-shadow: 0 0 0 2px #EE9B00; border-color: #EE9B00; }
+.taps-markup-stage {
+  flex: 1; min-height: 0; overflow: auto;
+  display: grid; place-items: center; padding: 8px;
+  touch-action: none;
+}
+.taps-markup-canvas {
+  display: block; max-width: 100%; max-height: 100%;
+  touch-action: none;
+  cursor: crosshair;
+  background: #04202A;
+}
+
+/* Card body readability: 17px, line-height 1.45, AA secondary, labels lighter than values.
+   Layout (spacing, structure, header) is unchanged. */
+.tap-body, .tap-lines, .tap-line, .tap-scanned, .tap-cc-ready, .tap-reason, .tap-meta,
+.tap-note-shown, .tap-picked, .tap-delivered-box, .tap-eta-line {
+  font-size: 17px;
+  line-height: 1.45;
+}
+.tap-line-label { font-weight: 400; color: #B9DCD2; }
+.tap-line-value { font-weight: 600; color: var(--ink); }
+.tap-scanned, .tap-cc-ready, .tap-reason { font-weight: 600; color: var(--ink); }
+.tap-meta { font-weight: 400; color: #B9DCD2; }
+
+.pill.review {
+  background: rgba(238, 155, 0, 0.18); color: #FFC56B;
+  text-transform: none; letter-spacing: 0.02em; font-weight: 700;
+}
+
+/* Shipped/Delivered last line */
+.tap-delivered-box {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px;
+  margin-top: 6px; padding: 8px 10px; border-radius: 10px;
+  background: #1F6B45; color: #FFFFFF;
+  font-size: 17px; line-height: 1.45; font-weight: 600;
+}
+.tap-delivered-flag { font-weight: 700; letter-spacing: 0.06em; }
+.tap-delivered-box .tap-ups { color: #FFFFFF; border-bottom-color: rgba(255, 255, 255, 0.55); }
+.tap-delivered-box .tap-ups:hover { color: #FFF3C4; border-bottom-color: #FFF3C4; }
+.tap-eta-line {
+  margin-top: 6px; font-size: 17px; line-height: 1.45; font-weight: 600;
+  color: var(--ink);
+}
+.tap-eta-line .tap-ups { color: #B9DCD2; font-weight: 600; }
