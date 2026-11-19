@@ -100,10 +100,19 @@
     if (!tok) return Promise.reject({ status: 401 });
     opts = opts || {};
     opts.headers = Object.assign({ Authorization: "Bearer " + tok }, opts.headers || {});
-    return fetch(API + encodeURIComponent(CFG.sheetId) + path, opts).then(function (r) {
-      if (r.ok) return r.json();
-      return r.text().then(function (t) { throw { status: r.status, text: t }; });
-    });
+    /* Reads (GET) retry twice on Google 5xx/429 with backoff (1s, 3s). Writes never retry, so no duplicate rows. */
+    var isRead = !opts.method || String(opts.method).toUpperCase() === "GET";
+    var waits = isRead ? [1000, 3000] : [];
+    function attempt(n) {
+      return fetch(API + encodeURIComponent(CFG.sheetId) + path, opts).then(function (r) {
+        if (r.ok) return r.json();
+        if ((r.status >= 500 || r.status === 429) && n < waits.length) {
+          return new Promise(function (res) { setTimeout(res, waits[n]); }).then(function () { return attempt(n + 1); });
+        }
+        return r.text().then(function (t) { throw { status: r.status, text: t }; });
+      });
+    }
+    return attempt(0);
   }
 
   function rowsToObjects(values) {
