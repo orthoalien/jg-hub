@@ -94,7 +94,7 @@
 
   var lastChecked = null;
   function load() {
-    return api("/values:batchGet?ranges=Items!A1:L&ranges=Answers!A1:E&majorDimension=ROWS").then(function (d) {
+    return api("/values:batchGet?ranges=Items!A1:Q&ranges=Answers!A1:E&majorDimension=ROWS").then(function (d) {
       var vr = d.valueRanges || [];
       items = rowsToObjects(vr[0] && vr[0].values);
       answers = rowsToObjects(vr[1] && vr[1].values);
@@ -135,6 +135,22 @@
     return best;
   }
 
+  var STAR_ORDER = ["purple", "blue", "green", "yellow", "red", "orange"];
+  var starFilter = "all";
+  /* Align star color from the `star` column; old feeds: bar=purple or a "PURPLE STAR" pill. */
+  function starColor(it) {
+    var c = String(it.star || "").trim().toLowerCase();
+    if (STAR_ORDER.indexOf(c) >= 0) return c;
+    if (it.bar === "purple" || split(it.pills).some(function (p) { return /PURPLE STAR/i.test(p); })) return "purple";
+    return "";
+  }
+  function sectionOf(it) {
+    var v = String(it.section || "").trim().toLowerCase();
+    if (v === "done") v = "manufacturing";
+    return v;
+  }
+  function upsUrl(n) { return "https://www.ups.com/track?tracknum=" + encodeURIComponent(n); }
+
   function split(s) { return String(s || "").split("|").map(function (x) { return x.trim(); }).filter(Boolean); }
 
   /* ---------- UI ---------- */
@@ -157,7 +173,8 @@
   function row(it) {
     var ans = latestAnswer(it);
     var answered = !!ans && !editing[it.case];
-    var bar = answered ? "done" : (it.bar || "wait");
+    var mfg = sectionOf(it) === "manufacturing";
+    var bar = (answered || mfg) ? "done" : (it.bar || "wait");
     var card = el("article", "tap-row bar-" + bar + (answered ? " answered" : ""));
     card.appendChild(el("div", "tap-bar"));
     var main = el("div", "tap-main");
@@ -165,8 +182,9 @@
     var top = el("div", "tap-top");
     top.appendChild(el("span", "tap-name", it.patient));
     var pills = split(it.pills);
-    if (it.bar === "purple" || pills.some(function (p) { return /PURPLE STAR/i.test(p); })) {
-      var star = el("span", "tap-star", "\u2605"); star.setAttribute("aria-label", "purple star"); top.appendChild(star);
+    var sc = starColor(it);
+    if (sc) {
+      var star = el("span", "tap-star star-" + sc, "\u2605"); star.setAttribute("aria-label", sc + " star"); star.title = sc + " star"; top.appendChild(star);
     }
     pills.filter(function (p) { return !/PURPLE STAR/i.test(p); }).forEach(function (p) {
       var cls = /RUSH/i.test(p) ? "pill stop" : /PRIORITY/i.test(p) ? "pill purple" : /DONE/i.test(p) ? "pill done" : "pill";
@@ -177,9 +195,28 @@
     var meta = [];
     if (it.case && /^\d+$/.test(it.case)) meta.push("#" + it.case);
     if (it.plan) meta.push("plan " + it.plan);
-    if (it.appt) meta.push("appt " + it.appt);
+    if (it.appt && !mfg) meta.push("appt " + it.appt);
     main.appendChild(el("div", "tap-meta", meta.join(" \u00b7 ")));
-    main.appendChild(el("div", "tap-reason", it.reason));
+    if (it.reason) main.appendChild(el("div", "tap-reason", it.reason));
+    if (mfg) {
+      var facts = [["Approved", it.approved], ["Appt", it.appt], ["Mfg ETA", it.mfg_eta], ["UPS", it.ups], ["At office", it.ups_eta]]
+        .filter(function (f) { return String(f[1] || "").trim() !== ""; });
+      if (facts.length) {
+        var dl = el("dl", "tap-facts");
+        facts.forEach(function (f) {
+          var wrap = el("div", "tap-fact");
+          wrap.appendChild(el("dt", null, f[0]));
+          var dd = el("dd");
+          if (f[0] === "UPS") {
+            var u = el("a", "tap-ups", String(f[1]).trim());
+            u.href = upsUrl(String(f[1]).trim()); u.target = "_blank"; u.rel = "noopener noreferrer";
+            dd.appendChild(u);
+          } else dd.textContent = f[1];
+          wrap.appendChild(dd); dl.appendChild(wrap);
+        });
+        main.appendChild(dl);
+      }
+    }
 
     var acts = el("div", "tap-acts");
     if (answered) {
@@ -233,22 +270,27 @@
     if (!body) return;
     body.querySelectorAll("details.tap-group").forEach(function (d) { openState[d.dataset.key] = d.open; });
     body.textContent = "";
-    var bySec = { tap: [], in_progress: [], done: [], not_urgent: [] };
-    items.forEach(function (it) { (bySec[it.section] || bySec.tap).push(it); });
-    var rank = { purple: 0, stop: 1, wait: 2, go: 3, done: 4 };
-    bySec.tap.sort(function (x, y) {
-      var ax = latestAnswer(x) ? 1 : 0, ay = latestAnswer(y) ? 1 : 0;
-      return ax - ay || (rank[x.bar] == null ? 5 : rank[x.bar]) - (rank[y.bar] == null ? 5 : rank[y.bar]);
-    });
+    var bySec = { tap: [], in_progress: [], manufacturing: [], not_urgent: [] };
+    items.forEach(function (it) { (bySec[sectionOf(it)] || bySec.tap).push(it); });
     var open = bySec.tap.filter(function (it) { return !latestAnswer(it); }).length;
+    var rank = { stop: 0, wait: 1, go: 2, done: 3 };
+    function starRank(it) { var i = STAR_ORDER.indexOf(starColor(it)); return i < 0 ? STAR_ORDER.length : i; }
+    function barRank(it) { return rank[it.bar] == null ? 4 : rank[it.bar]; }
+    Object.keys(bySec).forEach(function (k) {
+      if (starFilter !== "all") bySec[k] = bySec[k].filter(function (it) { return starColor(it) === starFilter; });
+      bySec[k].sort(function (x, y) {
+        var ax = latestAnswer(x) ? 1 : 0, ay = latestAnswer(y) ? 1 : 0;
+        return ax - ay || starRank(x) - starRank(y) || barRank(x) - barRank(y);
+      });
+    });
     var sections = [
       ["tap", "Needs a tap", bySec.tap, true],
       ["in_progress", "In progress", bySec.in_progress, false],
-      ["done", "Done", bySec.done, false],
-      ["not_urgent", "Not urgent", bySec.not_urgent, false]
+      ["manufacturing", "Manufacturing", bySec.manufacturing, false],
+      ["not_urgent", "Low priority", bySec.not_urgent, false]
     ];
     sections.forEach(function (s) {
-      if (s[0] === "in_progress" && !s[2].length) return;
+      if ((s[0] === "in_progress" || s[0] === "not_urgent") && !s[2].length) return;
       var g = group(s[1], s[2], openState[s[0]] != null ? openState[s[0]] : s[3]);
       g.dataset.key = s[0];
       body.appendChild(g);
@@ -321,6 +363,18 @@
     h.appendChild(el("h2", null, "What needs a tap"));
     statusEl = el("p", "taps-status");
     h.appendChild(statusEl);
+    var fl = el("label", "taps-filter");
+    fl.appendChild(el("span", "taps-filter-star", "\u2605"));
+    var sel = el("select"); sel.setAttribute("aria-label", "Filter by star color");
+    [["all", "All"]].concat(STAR_ORDER.map(function (c) { return [c, c.charAt(0).toUpperCase() + c.slice(1) + " \u2605"]; }))
+      .forEach(function (o) { var op = el("option", null, o[1]); op.value = o[0]; sel.appendChild(op); });
+    sel.addEventListener("change", function () {
+      starFilter = sel.value;
+      fl.className = "taps-filter" + (starFilter === "all" ? "" : " star-" + starFilter);
+      render();
+    });
+    fl.appendChild(sel);
+    h.appendChild(fl);
     head.appendChild(h);
     var refresh = el("button", "taps-icon-btn", "\u21bb"); refresh.type = "button"; refresh.title = "Refresh"; refresh.setAttribute("aria-label", "Refresh");
     refresh.addEventListener("click", function (e) {
@@ -341,7 +395,7 @@
     panel.appendChild(head);
     body = el("div", "taps-body");
     panel.appendChild(body);
-    panel.appendChild(el("p", "taps-legend", "red = stop \u00b7 orange = waiting on you \u00b7 green = ready \u00b7 grey = done \u00b7 \u2605 purple = star priority. Private: real patient data."));
+    panel.appendChild(el("p", "taps-legend", "red = stop \u00b7 orange = waiting on you \u00b7 green = ready \u00b7 grey = done / manufacturing \u00b7 \u2605 = Align star (purple first). Private: real patient data."));
     overlay.appendChild(panel);
     document.body.appendChild(overlay);
     document.addEventListener("keydown", function (e) { if (e.key === "Escape" && overlay.classList.contains("open")) closeBoard(); });

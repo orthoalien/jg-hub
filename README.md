@@ -21,7 +21,7 @@ The site should then be available at https://jg.drgreenie.com and https://orthoa
 
 The "Invisalign taps" tile opens an in-page board. It holds **no patient data**: in the browser it signs Greenie in with Google Identity Services (token model, `spreadsheets` scope, `login_hint` jgreenberg21@gmail.com) and reads/writes her private Google Sheet "Tap Board" straight from the Sheets API. Google enforces access to the Sheet; other accounts get 403.
 
-- `Items` tab: patient, case, plan, appt, reason, bar (stop/go/wait/done/purple), section (tap/in_progress/done/not_urgent), buttons (`|`), pills (`|`), patientId, open_label, updated (ISO). Bump `updated` only when that row's content changes: a tap older than `updated` no longer counts.
+- `Items` tab (read by header name, range A1:Q): patient, case, plan, appt, reason, bar (stop/go/wait/done/purple), section (tap/in_progress/manufacturing/not_urgent; `done` = alias of manufacturing), buttons (`|`), pills (`|`), patientId, open_label, updated (ISO), approved, mfg_eta, ups (UPS tracking #), ups_eta (ETA to office), star (purple/blue/green/yellow/red/orange or blank). Manufacturing cards are grey; `not_urgent` rows show in a collapsed "Low priority" group at the bottom. Bump `updated` only when that row's content changes: a tap older than `updated` no longer counts.
 - `Answers` tab: case, patient, choice, ts (ISO, UTC), status (`pending` → set to `confirmed` once acted on). The board polls every 30 s.
 - Until `clientId` is filled in `taps-config.js` the board shows "Not connected yet".
 - Never commit patient data, a client secret, or an API key here. The OAuth client ID and Sheet ID are not secrets.

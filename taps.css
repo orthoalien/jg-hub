@@ -126,3 +126,35 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
 .taps-icon-btn.spinning{animation:taps-spin .7s linear infinite;opacity:.75}
 .taps-icon-btn:disabled{cursor:progress}
 @keyframes taps-spin{to{transform:rotate(360deg)}}
+
+/* Align star colors */
+.tap-star.star-purple, .taps-filter.star-purple .taps-filter-star { color: #A78BFA; }
+.tap-star.star-blue, .taps-filter.star-blue .taps-filter-star { color: #60A5FA; }
+.tap-star.star-green, .taps-filter.star-green .taps-filter-star { color: #4ADE80; }
+.tap-star.star-yellow, .taps-filter.star-yellow .taps-filter-star { color: #FACC15; }
+.tap-star.star-red, .taps-filter.star-red .taps-filter-star { color: #F87171; }
+.tap-star.star-orange, .taps-filter.star-orange .taps-filter-star { color: #FB923C; }
+
+/* Header star filter (compact, sits under the status line; never overlaps the buttons) */
+.taps-head > div:first-child { flex: 1; min-width: 0; }
+.taps-head-btns { flex-shrink: 0; position: relative; z-index: 2; }
+.taps-filter {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  padding: 2px 4px 2px 10px; border-radius: 10px;
+  border: 1px solid rgba(148, 210, 189, 0.25); background: rgba(0, 18, 25, 0.4);
+}
+.taps-filter-star { color: var(--caption); font-size: 0.95rem; line-height: 1; }
+.taps-filter select {
+  font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--ink);
+  background: transparent; border: 0; padding: 4px 4px; min-height: 28px; cursor: pointer;
+}
+.taps-filter select option { color: #001219; }
+.taps-filter:focus-within { border-color: var(--sunset); }
+
+/* Manufacturing facts */
+.tap-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; }
+.tap-fact { display: flex; gap: 6px; align-items: baseline; font-size: 0.82rem; }
+.tap-fact dt { color: var(--caption); font-weight: 600; }
+.tap-fact dd { margin: 0; color: #D5D8D6; }
+.tap-ups { color: var(--foam); font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(148, 210, 189, 0.4); word-break: break-all; }
+.tap-ups:hover { color: var(--sunset); border-bottom-color: var(--sunset); }
