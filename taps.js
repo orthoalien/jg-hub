@@ -92,11 +92,13 @@
       });
   }
 
+  var lastChecked = null;
   function load() {
     return api("/values:batchGet?ranges=Items!A1:L&ranges=Answers!A1:E&majorDimension=ROWS").then(function (d) {
       var vr = d.valueRanges || [];
       items = rowsToObjects(vr[0] && vr[0].values);
       answers = rowsToObjects(vr[1] && vr[1].values);
+      lastChecked = new Date();
       render();
     });
   }
@@ -253,7 +255,8 @@
     });
     var newest = items.reduce(function (m, it) { var t = Date.parse(it.updated) || 0; return t > m ? t : m; }, 0);
     var when = newest ? new Date(newest).toLocaleString("en-US", { timeZone: "America/New_York", weekday: "short", month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
-    setStatus(open + " waiting on you" + (when ? " \u00b7 list as of " + when + " ET" : ""));
+    var chk = lastChecked ? lastChecked.toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }) : "";
+    setStatus(open + " waiting on you" + (when ? " \u00b7 list as of " + when + " ET" : "") + (chk ? " \u00b7 checked " + chk : ""));
   }
 
   function showGate(kind, msg) {
@@ -320,7 +323,17 @@
     h.appendChild(statusEl);
     head.appendChild(h);
     var refresh = el("button", "taps-icon-btn", "\u21bb"); refresh.type = "button"; refresh.title = "Refresh"; refresh.setAttribute("aria-label", "Refresh");
-    refresh.addEventListener("click", function () { if (savedToken()) load().catch(function (e) { handleError(e); }); else unlock(false); });
+    refresh.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      if (!savedToken()) { unlock(false); return; }
+      if (refresh.classList.contains("spinning")) return;
+      refresh.classList.add("spinning"); refresh.disabled = true;
+      var t0 = Date.now();
+      var done = function () {
+        setTimeout(function () { refresh.classList.remove("spinning"); refresh.disabled = false; }, Math.max(0, 600 - (Date.now() - t0)));
+      };
+      load().then(done, function (err) { done(); handleError(err); });
+    });
     var close = el("button", "taps-icon-btn", "\u2715"); close.type = "button"; close.title = "Close"; close.setAttribute("aria-label", "Close");
     close.addEventListener("click", closeBoard);
     var btns = el("div", "taps-head-btns"); btns.appendChild(refresh); btns.appendChild(close);
