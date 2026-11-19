@@ -69,7 +69,7 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
   border: 1px solid rgba(148, 210, 189, 0.16);
   border-radius: 14px; padding: 12px; margin-bottom: 10px;
 }
-.tap-row.answered, .tap-row.bar-done { opacity: 0.72; }
+/* No state ever dims card content: answered/manufacturing cards keep full contrast (grey bar only). */
 .tap-bar { width: 6px; border-radius: 3px; flex-shrink: 0; background: var(--sunset); }
 .bar-stop .tap-bar { background: #D8452F; }
 .bar-wait .tap-bar { background: #EE9B00; }
@@ -99,16 +99,17 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
 }
 .tap-btn.primary { background: linear-gradient(160deg, #EE9B00, #CA6702); border-color: transparent; color: #001219; }
 .tap-btn:hover, .tap-btn:focus-visible { border-color: var(--sunset); outline: none; }
+.tap-btn.primary:hover, .tap-btn.primary:focus-visible { border-color: transparent; filter: brightness(1.08); box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.45); }
 .tap-btn:active { transform: translateY(1px); }
-.tap-open { color: var(--foam); font-size: 0.86rem; font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(148, 210, 189, 0.4); margin-left: 4px; }
-.tap-open:hover { color: var(--sunset); border-bottom-color: var(--sunset); }
-.tap-picked { font-weight: 700; color: #D5D8D6; font-size: 0.88rem; }
+/* Open plan: a real link, styled exactly like the solid primary button */
+a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration: none; }
+.tap-picked { font-weight: 700; color: var(--ink); font-size: 0.9rem; }
 .tap-pending {
   font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
   padding: 2px 8px; border-radius: 999px; background: rgba(238, 155, 0, 0.16); color: #FFC56B;
 }
 .tap-pending.ok { background: rgba(138, 143, 140, 0.25); color: #D5D8D6; }
-.tap-link { font: inherit; font-size: 0.8rem; background: none; border: 0; color: var(--caption); text-decoration: underline; cursor: pointer; }
+.tap-link { font: inherit; font-size: 0.9rem; font-weight: 700; background: none; border: 0; padding: 0; color: var(--foam); text-decoration: underline; cursor: pointer; }
 
 .tap-gate { text-align: center; padding: 48px 16px; }
 .tap-gate h3 { font-size: 1.15rem; margin-bottom: 8px; color: var(--ink); }
@@ -128,28 +129,34 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
 @keyframes taps-spin{to{transform:rotate(360deg)}}
 
 /* Align star colors */
-.tap-star.star-purple, .taps-filter.star-purple .taps-filter-star { color: #A78BFA; }
-.tap-star.star-blue, .taps-filter.star-blue .taps-filter-star { color: #60A5FA; }
-.tap-star.star-green, .taps-filter.star-green .taps-filter-star { color: #4ADE80; }
-.tap-star.star-yellow, .taps-filter.star-yellow .taps-filter-star { color: #FACC15; }
-.tap-star.star-red, .taps-filter.star-red .taps-filter-star { color: #F87171; }
-.tap-star.star-orange, .taps-filter.star-orange .taps-filter-star { color: #FB923C; }
+.tap-star.star-purple { color: #A78BFA; }
+.tap-star.star-blue { color: #60A5FA; }
+.tap-star.star-green { color: #4ADE80; }
+.tap-star.star-red { color: #F87171; }
 
-/* Header star filter (compact, sits under the status line; never overlaps the buttons) */
+/* Header star filter: plain stars; tap to filter, tap again to clear */
 .taps-head > div:first-child { flex: 1; min-width: 0; }
 .taps-head-btns { flex-shrink: 0; position: relative; z-index: 2; }
-.taps-filter {
-  display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
-  padding: 2px 4px 2px 10px; border-radius: 10px;
-  border: 1px solid rgba(148, 210, 189, 0.25); background: rgba(0, 18, 25, 0.4);
+.taps-stars { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.taps-stars[hidden] { display: none; }
+.taps-star-btn {
+  font: inherit; font-size: 1.35rem; line-height: 1; cursor: pointer;
+  width: 36px; height: 36px; display: grid; place-items: center;
+  background: none; border: 0; border-radius: 50%; padding: 0;
+  opacity: 0.72; transition: opacity 0.12s, transform 0.12s, background 0.12s;
+  touch-action: manipulation;
 }
-.taps-filter-star { color: var(--caption); font-size: 0.95rem; line-height: 1; }
-.taps-filter select {
-  font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--ink);
-  background: transparent; border: 0; padding: 4px 4px; min-height: 28px; cursor: pointer;
-}
-.taps-filter select option { color: #001219; }
-.taps-filter:focus-within { border-color: var(--sunset); }
+.taps-star-btn:hover, .taps-star-btn:focus-visible { opacity: 0.9; outline: none; }
+.taps-star-btn.active { opacity: 1; transform: scale(1.18); background: rgba(233, 245, 242, 0.12); box-shadow: inset 0 0 0 2px currentColor; }
+.taps-star-btn.star-purple { color: #A78BFA; }
+.taps-star-btn.star-blue { color: #60A5FA; }
+.taps-star-btn.star-green { color: #4ADE80; }
+.taps-star-btn.star-red { color: #F87171; }
+.taps-star-btn.star-none, .tap-star.star-none { color: #C3C8C5; }
+
+/* Name line: appointment (or DD / due date) right after the star */
+.tap-when { font-size: 0.82rem; font-weight: 700; color: #FFC56B; }
+.tap-when.dd { color: var(--caption); }
 
 /* Manufacturing facts */
 .tap-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; }
@@ -158,3 +165,35 @@ html.taps-lock, html.taps-lock body { overflow: hidden; }
 .tap-fact dd { margin: 0; color: #D5D8D6; }
 .tap-ups { color: var(--foam); font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(148, 210, 189, 0.4); word-break: break-all; }
 .tap-ups:hover { color: var(--sunset); border-bottom-color: var(--sunset); }
+
+/* Modify request: inline note box */
+.tap-btn.primary.active { box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.55); filter: brightness(1.08); }
+.tap-btn.primary:disabled { cursor: not-allowed; filter: none; box-shadow: none; background: #8A8F8C; color: #001219; }
+.tap-modify { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.tap-note-input {
+  width: 100%; font: inherit; font-size: 16px; /* 16px stops iOS zoom-on-focus */
+  line-height: 1.35; padding: 8px 10px; border-radius: 10px; resize: vertical;
+  border: 1px solid rgba(148, 210, 189, 0.3); background: rgba(0, 18, 25, 0.5); color: var(--ink);
+}
+.tap-note-input:focus { outline: none; border-color: var(--sunset); }
+.tap-modify-btns { display: flex; gap: 8px; }
+.tap-note-shown { margin-top: 6px; font-size: 0.9rem; color: var(--ink); }
+
+/* Section header bands: each section gets its own solid color + matching thin top border.
+   Card status bars (red/orange/green/grey) are unchanged. */
+.tap-group { --sec: #0F6E7A; border-top: 3px solid var(--sec); border-radius: 4px 4px 0 0; padding-top: 0; }
+.tap-group[data-key="tap"] { --sec: #0F6E7A; }
+.tap-group[data-key="in_progress"] { --sec: #4B4FA8; }
+.tap-group[data-key="manufacturing"] { --sec: #3D5A80; }
+.tap-group[data-key="shipped"] { --sec: #C8742B; }
+.tap-group > summary {
+  background: var(--sec); color: #FFFFFF;
+  padding: 9px 12px; margin-bottom: 10px; border-radius: 0 0 10px 10px;
+}
+.tap-group > summary::before { color: #FFFFFF; }
+.tap-group > summary .count { background: rgba(255, 255, 255, 0.22); color: #FFFFFF; }
+
+/* Fixed 4-line layout on Manufacturing + Shipped/Delivered cards (full contrast) */
+.tap-lines { margin-top: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 0.88rem; color: var(--ink); }
+.tap-line-label { color: #B9DCD2; font-weight: 700; }
+.tap-delivered { vertical-align: 1px; text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
