@@ -330,6 +330,26 @@
     var p = String(it.appt || "").trim() ? parseMD(it.appt) : parseMD(it.due);
     return p ? p.t : Infinity;
   }
+  /* Manufacturing sort: parse approved as M/D or M/D/YYYY. Yearless values use the current America/New_York year. Blank or unparseable -> Infinity (after dated rows). */
+  function approvedSortTime(it) {
+    var str = String(it.approved || "").trim();
+    if (!str) return Infinity;
+    var p = parseMD(str);
+    if (!p) return Infinity;
+    var hasYear = /^\d{4}-\d{1,2}-\d{1,2}/.test(str) || /(?:^|[^\d])\d{1,2}\/\d{1,2}\/\d{2,4}\b/.test(str);
+    if (!hasYear) {
+      var yr = new Date(nyToday()).getUTCFullYear();
+      return Date.UTC(yr, p.mo - 1, p.d, 12);
+    }
+    return p.t;
+  }
+  function hasDelivered(it) {
+    return String(it.delivered || "").trim() !== "";
+  }
+  function deliveredSortTime(it) {
+    var p = parseMD(it.delivered);
+    return p ? p.t : 0;
+  }
   var starFilter = "all"; // "all", a color, or "none" (cards with no star)
   /* Align star color from the `star` column; old feeds: bar=purple or a "PURPLE STAR" pill. */
   function starColor(it) {
@@ -432,11 +452,13 @@
     star.setAttribute("aria-label", sc ? sc + " star" : "no star"); star.title = sc ? sc + " star" : "no star";
     top.appendChild(star);
     var appt = String(it.appt || "").trim(), due = String(it.due || "").trim();
-    /* Tap/scan: appt or dd on the name line. Shipped/mfg: dd/due only when appt is missing (appt lives on its own line). */
-    if (!mfg && !shipped) {
-      top.appendChild(el("span", "tap-when" + (appt ? "" : " dd"), appt ? apptLabel(appt).replace(pills.some(function (p) { return /^RUSH$/i.test(p.trim()); }) ? /\s*\bRUSH\b/i : /$^/, "") : dueLabel(due)));
-    } else if (!appt) {
+    /* Every card shows an appt tag, a due tag, or a red No date flag next to the star. */
+    if (appt) {
+      top.appendChild(el("span", "tap-when", apptLabel(appt).replace(pills.some(function (p) { return /^RUSH$/i.test(p.trim()); }) ? /\s*\bRUSH\b/i : /$^/, "")));
+    } else if (due) {
       top.appendChild(el("span", "tap-when dd", dueLabel(due)));
+    } else {
+      top.appendChild(el("span", "tap-when no-date", "No date"));
     }
     pills.filter(function (p) { return !/PURPLE STAR/i.test(p); }).forEach(function (p) {
       var cls = /RUSH/i.test(p) ? "pill stop" : /PRIORITY/i.test(p) ? "pill purple" : /DONE/i.test(p) ? "pill done" : "pill";
@@ -467,6 +489,14 @@
       wrap.appendChild(d);
       return d;
     }
+    function dateOrDash(raw) {
+      return fmtDate(raw) || "\u2014";
+    }
+    /* Every card lists Scan and Approved; a blank value shows an em dash. */
+    function addScanApproved() {
+      addLine("Scan", function (d) { d.appendChild(el("span", "tap-line-value", dateOrDash(it.scan_date))); });
+      addLine("Approved", function (d) { d.appendChild(el("span", "tap-line-value", dateOrDash(it.approved))); });
+    }
     function upsLink(parent, ups) {
       var uw = el("span", null, "UPS ");
       var u = el("a", "tap-ups", ups); u.href = upsUrl(ups); u.target = "_blank"; u.rel = "noopener noreferrer";
@@ -479,14 +509,10 @@
     var req = String(it.req_date || "").trim();
 
     if (scan) {
-      var scanned = fmtDate(it.scan_date) || fmtDate(it.updated);
-      wrap.appendChild(el("div", "tap-scanned", scanned ? "Scanned " + scanned : "Scanned"));
+      addScanApproved();
       if (it.reason) wrap.appendChild(el("div", "tap-reason", it.reason));
     } else if (shipped) {
-      var scanD = fmtDate(it.scan_date);
-      if (scanD) addLine("Scan date", function (d) { d.appendChild(el("span", "tap-line-value", scanD)); });
-      var appr = fmtDate(it.approved);
-      if (appr) addLine("Approved", function (d) { d.appendChild(el("span", "tap-line-value", appr)); });
+      addScanApproved();
       if (appt) addLine("Appt", function (d) { d.appendChild(el("span", "tap-line-value", apptLabel(it.appt))); });
       var shpRaw = String(it.shipped || "").trim();
       var ups = String(it.ups || "").trim();
@@ -508,8 +534,7 @@
       if (it.reason) wrap.appendChild(el("div", "tap-reason", (req ? req + ": " : "") + it.reason));
       if (meta.length) wrap.appendChild(el("div", "tap-meta", meta.join(" \u00b7 ")));
     } else if (mfg) {
-      var apprM = fmtDate(it.approved);
-      if (apprM) addLine("Approved", function (d) { d.appendChild(el("span", null, apprM)); });
+      addScanApproved();
       if (appt) addLine("Appt", function (d) { d.appendChild(el("span", null, apptLabel(it.appt))); });
       var mfgEta = fmtDate(it.mfg_eta);
       if (mfgEta) addLine("Manufacturing:", function (d) { d.appendChild(el("span", null, "Mfg ETA " + mfgEta)); });
@@ -534,8 +559,7 @@
       if (it.reason) wrap.appendChild(el("div", "tap-reason", (req ? req + ": " : "") + it.reason));
       if (meta.length) wrap.appendChild(el("div", "tap-meta", meta.join(" \u00b7 ")));
     } else {
-      var scannedTap = fmtDate(it.scan_date);
-      if (scannedTap) wrap.appendChild(el("div", "tap-scanned", "Scanned " + scannedTap));
+      addScanApproved();
       var ready = fmtDate(it.cc_ready);
       if (ready) wrap.appendChild(el("div", "tap-cc-ready", "ClinCheck ready " + ready));
       if (meta.length) wrap.appendChild(el("div", "tap-meta", meta.join(" \u00b7 ")));
@@ -766,12 +790,27 @@
     function barRank(it) { return rank[it.bar] == null ? 4 : rank[it.bar]; }
     Object.keys(bySec).forEach(function (k) {
       if (starFilter !== "all") bySec[k] = bySec[k].filter(function (it) { return (starColor(it) || "none") === starFilter; });
-      bySec[k].sort(function (x, y) {
+      bySec[k] = bySec[k].map(function (it, i) { return { it: it, i: i }; }).sort(function (a, b) {
+        var x = a.it, y = b.it, tie = a.i - b.i;
+        if (k === "manufacturing") {
+          var apx = approvedSortTime(x), apy = approvedSortTime(y);
+          var ad = apx === apy ? 0 : (apx === Infinity ? 1 : apy === Infinity ? -1 : apx - apy);
+          return ad || tie;
+        }
         var ax = latestAnswer(x) ? 1 : 0, ay = latestAnswer(y) ? 1 : 0;
         var dx = sortDate(x), dy = sortDate(y);
         var dd = dx === dy ? 0 : (dx === Infinity ? 1 : dy === Infinity ? -1 : dx - dy);
-        return ax - ay || starRank(x) - starRank(y) || dd || barRank(x) - barRank(y);
-      });
+        var base = ax - ay || starRank(x) - starRank(y) || dd || barRank(x) - barRank(y);
+        if (k === "shipped") {
+          var xd = hasDelivered(x) ? 0 : 1, yd = hasDelivered(y) ? 0 : 1;
+          if (xd !== yd) return xd - yd;
+          if (xd === 0) {
+            var dtx = deliveredSortTime(x), dty = deliveredSortTime(y);
+            if (dtx !== dty) return dty - dtx;
+          }
+        }
+        return base || tie;
+      }).map(function (o) { return o.it; });
     });
     var sections = [
       ["scan", "MyiTero", bySec.scan, false, null],

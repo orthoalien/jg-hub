@@ -148,9 +148,28 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
 .taps-star-btn.star-red { color: #F87171; }
 .taps-star-btn.star-none, .tap-star.star-none { color: #C3C8C5; }
 
-/* Name line: appointment (or dd / due date) right after the star */
-.tap-when { font-size: 0.82rem; font-weight: 700; color: #FFC56B; }
-.tap-when.dd { color: var(--caption); }
+/* Name line: appointment (yellow pill), due tag, or red No date flag right after the star */
+.tap-when {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  background: #FFD84D;
+  border-radius: 999px;
+  padding: 1px 8px;
+  line-height: 1.4;
+}
+.tap-when.dd {
+  color: var(--caption);
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.tap-when.no-date {
+  color: #fff;
+  background: #D8452F;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
 
 /* Manufacturing facts */
 .tap-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 8px 0 0; }
