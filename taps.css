@@ -304,19 +304,23 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
 }
 
 .taps-markup-dock-wrap {
-  position: absolute; left: 0; right: 0; bottom: 0;
+  position: absolute; left: 0; top: 0; right: auto; bottom: auto;
   z-index: 3;
-  pointer-events: none;
-  padding-bottom: env(safe-area-inset-bottom);
-  background: linear-gradient(180deg, rgba(0,18,25,0) 0%, rgba(0,18,25,.45) 55%, rgba(0,18,25,.72) 100%);
+  display: flex; flex-direction: column; align-items: center;
+  width: max-content; max-width: calc(100vw - 16px);
+  pointer-events: auto;
+  padding: 0;
+  background: none;
 }
-.taps-markup-dock-wrap > * { pointer-events: auto; }
+.taps-markup-dock-wrap.trays-below { flex-direction: column-reverse; }
+.taps-markup-dock-wrap.dragging { z-index: 4; }
 
 .taps-markup-trays {
   display: flex; align-items: flex-end; justify-content: center;
   gap: 14px;
-  padding: 0 16px 10px;
+  padding: 0 8px 10px;
 }
+.taps-markup-dock-wrap.trays-below .taps-markup-trays { padding: 10px 8px 0; }
 .taps-markup-tray {
   position: relative;
   background: rgba(8, 28, 36, 0.94);
@@ -341,6 +345,12 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
   background: rgba(8, 28, 36, 0.94);
   border-right: 1px solid rgba(148, 210, 189, 0.35);
   border-bottom: 1px solid rgba(148, 210, 189, 0.35);
+}
+.taps-markup-dock-wrap.trays-below .taps-markup-caret {
+  top: -7px; bottom: auto;
+  border-right: none; border-bottom: none;
+  border-left: 1px solid rgba(148, 210, 189, 0.35);
+  border-top: 1px solid rgba(148, 210, 189, 0.35);
 }
 
 .taps-markup-thickness { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -432,9 +442,9 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
 .taps-markup-dock {
   display: flex; align-items: center; justify-content: center;
   gap: 4px;
-  width: max-content; max-width: calc(100% - 24px);
-  margin: 0 auto 16px;
-  padding: 7px 10px 6px;
+  width: max-content; max-width: calc(100vw - 16px);
+  margin: 0;
+  padding: 7px 10px 6px 6px;
   background: rgba(8, 28, 36, 0.94);
   border: 1px solid rgba(148, 210, 189, 0.22);
   border-radius: 24px;
@@ -442,6 +452,23 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
   backdrop-filter: blur(18px);
   -webkit-backdrop-filter: blur(18px);
   touch-action: manipulation;
+}
+.taps-markup-grip {
+  width: 22px; min-height: 50px; flex-shrink: 0;
+  display: grid; place-items: center;
+  margin-right: 2px; border-radius: 12px;
+  cursor: grab; color: #9BB8B2;
+  touch-action: none;
+  -webkit-user-select: none; user-select: none;
+}
+.taps-markup-grip:focus-visible { outline: 2px solid #EE9B00; outline-offset: 2px; }
+.taps-markup-dock-wrap.dragging .taps-markup-grip { cursor: grabbing; }
+.taps-markup-grip-dots {
+  display: block; width: 10px; height: 16px;
+  background-image: radial-gradient(circle, currentColor 1.15px, transparent 1.3px);
+  background-size: 5px 5.3px;
+  background-position: 0 0;
+  pointer-events: none;
 }
 .taps-markup-sep {
   width: 1px; height: 28px;
@@ -514,3 +541,46 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
   color: var(--ink);
 }
 .tap-eta-line .tap-ups { color: #B9DCD2; font-weight: 600; }
+
+/* Staff notes: Late = red, Away = slate blue, Other = grey-blue. Never green. */
+.pill.staff-note {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-weight: 700;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pill.staff-late { background: #D8452F; color: #FFFFFF; }
+.pill.staff-away { background: #4A6578; color: #E8F1F6; }
+.pill.staff-other { background: #6A7B88; color: #E8EEF2; }
+
+.tap-staff-note {
+  margin-top: 10px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.tap-staff-note-label {
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #B9DCD2;
+}
+.tap-staff-note-row {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+}
+.tap-staff-note-type, select.tap-staff-note-type {
+  font: inherit; font-size: 16px; font-weight: 600;
+  min-height: 36px; padding: 6px 10px; border-radius: 10px;
+  border: 1px solid rgba(148, 210, 189, 0.3);
+  background: rgba(0, 18, 25, 0.5); color: var(--ink, #E9F5F2);
+  touch-action: manipulation;
+}
+.tap-staff-note-type:focus { outline: none; border-color: var(--sunset, #EE9B00); }
+.tap-staff-note-text, input.tap-staff-note-text {
+  flex: 1; min-width: 8rem;
+  font: inherit; font-size: 16px;
+  line-height: 1.35; padding: 8px 10px; border-radius: 10px;
+  border: 1px solid rgba(148, 210, 189, 0.3);
+  background: rgba(0, 18, 25, 0.5); color: var(--ink, #E9F5F2);
+}
+.tap-staff-note-text:focus { outline: none; border-color: var(--sunset, #EE9B00); }

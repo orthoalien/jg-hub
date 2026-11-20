@@ -131,11 +131,11 @@
   function batchGetPath(a, b) {
     return "/values:batchGet?ranges=" + encodeURIComponent(a) + "&ranges=" + encodeURIComponent(b) + "&majorDimension=ROWS";
   }
-  /* Prefer A1:Y so we do not pull unused columns. If that range 400s
-     (grid smaller than column Y, or a tab-name parse error), retry the
+  /* Prefer A1:AB so staff note columns Z–AB are included. If that range 400s
+     (grid smaller than column AB, or a tab-name parse error), retry the
      whole Items and Answers tabs, which stay in-grid. */
   function load() {
-    return api(batchGetPath("Items!A1:Y", "Answers!A1:F")).catch(function (err) {
+    return api(batchGetPath("Items!A1:AB", "Answers!A1:F")).catch(function (err) {
       if (err && err.status === 400) return api(batchGetPath("Items", "Answers"));
       throw err;
     }).then(function (d) {
@@ -197,6 +197,7 @@
   var ALLOWED_BUTTONS = ["Approve", "Modify request", "Staff resubmit", "Call for appointment"];
   var MODIFY = "Modify request";
   var modifyDraft = {}; // cardKey -> { text, choice } while a note box is open
+  var noteOpen = {}; // cardKey -> { type, text } while the staff-note form is open
   var ORDER = "Order Invisalign";
   var MARKUP_FOLDER = "Tap Board Markups";
   function cardKey(it) {
@@ -425,6 +426,132 @@
     setStatus(detail ? base + " " + detail : base, "warn");
   }
 
+
+  var NOTE_TYPES = ["Late", "Away dates", "Other"];
+  function staffNoteType(it) { return String(it.staff_note_type || "").trim(); }
+  function staffNoteText(it) { return String(it.staff_note || "").trim(); }
+  function hasStaffNote(it) { return !!(staffNoteType(it) || staffNoteText(it)); }
+  function staffNoteKind(type) {
+    var t = String(type || "").trim().toLowerCase();
+    if (t === "late") return "late";
+    if (t === "away dates" || t === "away" || t === "vacation") return "away";
+    return "other";
+  }
+  function staffNotePillLabel(type, text) {
+    var label = type || "Note";
+    if (text) {
+      var short = text.length > 28 ? text.slice(0, 27) + "\u2026" : text;
+      return label + " \u00b7 " + short;
+    }
+    return label;
+  }
+  /* Locate the Items row by the board's _row index, confirmed by patient + case. */
+  function findItemRow(it) {
+    var patient = String(it.patient || "").trim();
+    var caseId = String(it.case || "").trim();
+    var matches = items.filter(function (x) {
+      return String(x.patient || "").trim() === patient && String(x.case || "").trim() === caseId;
+    });
+    if (matches.length === 1 && matches[0]._row) return Number(matches[0]._row);
+    if (it._row) {
+      var self = matches.filter(function (x) { return Number(x._row) === Number(it._row); });
+      if (self.length === 1) return Number(it._row);
+    }
+    return 0;
+  }
+  function saveStaffNote(it, type, text) {
+    type = String(type || "").trim();
+    text = String(text || "").trim();
+    if (!type && text) type = "Other";
+    if (!type && !text) { type = ""; text = ""; }
+    var rowNum = findItemRow(it);
+    if (!rowNum) return Promise.reject({ status: 0, text: "missing-row" });
+    var ts = (type || text) ? new Date().toISOString() : "";
+    var key = cardKey(it);
+    var prev = { type: it.staff_note_type, text: it.staff_note, ts: it.staff_note_updated };
+    it.staff_note_type = type;
+    it.staff_note = text;
+    it.staff_note_updated = ts;
+    delete noteOpen[key];
+    render();
+    var range = "Items!Z" + rowNum + ":AB" + rowNum;
+    return api("/values/" + encodeURIComponent(range) + "?valueInputOption=RAW", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ values: [[type, text, ts]] })
+    }).then(function () {
+      setStatus("Staff note saved");
+    }).catch(function (err) {
+      it.staff_note_type = prev.type;
+      it.staff_note = prev.text;
+      it.staff_note_updated = prev.ts;
+      noteOpen[key] = { type: type, text: text };
+      render();
+      handleError(err, "The staff note did not save. Try again.");
+    });
+  }
+  function staffNoteBox(it) {
+    var key = cardKey(it);
+    var draft = noteOpen[key] || { type: staffNoteType(it) || "Late", text: staffNoteText(it) };
+    if (!draft.type) draft.type = "Late";
+    var f = el("div", "tap-staff-note");
+    f.appendChild(el("div", "tap-staff-note-label", "Staff note"));
+    var rowEl = el("div", "tap-staff-note-row");
+    var sel = document.createElement("select");
+    sel.className = "tap-staff-note-type";
+    sel.setAttribute("aria-label", "Staff note type");
+    NOTE_TYPES.forEach(function (t) {
+      var o = document.createElement("option");
+      o.value = t; o.textContent = t;
+      if (t === draft.type) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener("change", function () { if (noteOpen[key]) noteOpen[key].type = sel.value; });
+    var inp = el("input", "tap-add-input tap-staff-note-text");
+    inp.type = "text";
+    inp.placeholder = "Time, dates, or a short note";
+    inp.value = draft.text || "";
+    inp.dataset.key = key;
+    inp.dataset.keep = "staff-note";
+    inp.setAttribute("aria-label", "Staff note");
+    inp.addEventListener("input", function () { if (noteOpen[key]) noteOpen[key].text = inp.value; });
+    var save = el("button", "tap-btn primary", "Save");
+    save.type = "button";
+    save.addEventListener("click", function () {
+      withToken(function (err) {
+        if (err) { handleError({ status: 0 }, "Google sign-in didn't finish. Tap Save again."); return; }
+        save.disabled = true;
+        saveStaffNote(it, sel.value, inp.value).then(function () { save.disabled = false; }, function () { save.disabled = false; });
+      });
+    });
+    rowEl.appendChild(sel); rowEl.appendChild(inp); rowEl.appendChild(save);
+    if (hasStaffNote(it)) {
+      var clear = el("button", "tap-btn", "Clear");
+      clear.type = "button";
+      clear.addEventListener("click", function () {
+        withToken(function (err) {
+          if (err) { handleError({ status: 0 }, "Google sign-in didn't finish. Tap Clear again."); return; }
+          saveStaffNote(it, "", "");
+        });
+      });
+      rowEl.appendChild(clear);
+    }
+    var cancel = el("button", "tap-btn", "Cancel");
+    cancel.type = "button";
+    cancel.addEventListener("click", function () { delete noteOpen[key]; render(); });
+    rowEl.appendChild(cancel);
+    f.appendChild(rowEl);
+    return f;
+  }
+  function openStaffNote(it) {
+    var key = cardKey(it);
+    noteOpen[key] = { type: staffNoteType(it) || "Late", text: staffNoteText(it) };
+    cardOpen[key] = true;
+    render();
+    var box = body.querySelector('.tap-staff-note-text[data-key="' + cssEsc(key) + '"]');
+    if (box) box.focus();
+  }
+
   function row(it) {
     var key = cardKey(it);
     var ans = latestAnswer(it);
@@ -466,6 +593,21 @@
     });
     if (sec === "tap" && String(it.review || "").trim().toLowerCase() === "not_reviewed") {
       top.appendChild(el("span", "pill review", "Not yet reviewed"));
+    }
+    if (hasStaffNote(it)) {
+      var nt = staffNoteType(it), ntxt = staffNoteText(it);
+      var notePill = el("span", "pill staff-note staff-" + staffNoteKind(nt), staffNotePillLabel(nt, ntxt));
+      notePill.title = [nt, ntxt].filter(Boolean).join(": ") || "Staff note";
+      notePill.setAttribute("role", "button");
+      notePill.tabIndex = 0;
+      notePill.setAttribute("aria-label", "Edit staff note");
+      function openNote(e) { e.preventDefault(); e.stopPropagation(); openStaffNote(it); }
+      notePill.addEventListener("click", openNote);
+      notePill.addEventListener("keydown", function (e) {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        openNote(e);
+      });
+      top.appendChild(notePill);
     }
     top.addEventListener("click", function () {
       if (modifyDraft[key] != null) return;
@@ -625,7 +767,22 @@
       acts.appendChild(a);
     }
     wrap.appendChild(acts);
+    if (!noteOpen[key] && !hasStaffNote(it)) {
+      var noteLink = el("button", "tap-link", "Note");
+      noteLink.type = "button";
+      noteLink.title = "Add a staff note";
+      noteLink.setAttribute("aria-label", "Add a staff note");
+      noteLink.addEventListener("click", function (e) { e.stopPropagation(); openStaffNote(it); });
+      acts.appendChild(noteLink);
+    } else if (!noteOpen[key] && hasStaffNote(it)) {
+      var editNote = el("button", "tap-link", "Edit note");
+      editNote.type = "button";
+      editNote.setAttribute("aria-label", "Edit staff note");
+      editNote.addEventListener("click", function (e) { e.stopPropagation(); openStaffNote(it); });
+      acts.appendChild(editNote);
+    }
     if (!answered && modifyDraft[key] != null) wrap.appendChild(modifyBox(it));
+    if (noteOpen[key]) wrap.appendChild(staffNoteBox(it));
     main.appendChild(wrap);
     card.appendChild(main);
     return card;
@@ -952,6 +1109,11 @@
   }
 
   function closeMarkup() {
+    if (markupDockResize) {
+      window.removeEventListener("resize", markupDockResize);
+      window.removeEventListener("orientationchange", markupDockResize);
+      markupDockResize = null;
+    }
     if (!markupEl) return;
     if (markupEl.parentNode) markupEl.parentNode.removeChild(markupEl);
     markupEl = null;
@@ -973,6 +1135,21 @@
   }
 
   var MARKUP_PREFS_KEY = "itap-markup-prefs-v1";
+  var MARKUP_DOCK_POS_KEY = "itap-markup-toolbar-pos-v1";
+  var markupDockResize = null;
+  function loadDockFrac() {
+    try {
+      var p = JSON.parse(localStorage.getItem(MARKUP_DOCK_POS_KEY) || "null");
+      if (p && isFinite(p.x) && isFinite(p.y)) return { x: Number(p.x), y: Number(p.y) };
+    } catch (e) {}
+    return null;
+  }
+  function saveDockFrac(p) {
+    try { localStorage.setItem(MARKUP_DOCK_POS_KEY, JSON.stringify({ x: p.x, y: p.y })); } catch (e) {}
+  }
+  function clearDockFrac() {
+    try { localStorage.removeItem(MARKUP_DOCK_POS_KEY); } catch (e) {}
+  }
   var MARKUP_COLORS = [
     "#FFFFFF", "#D5D8D6", "#8A8F8C", "#001219", "#5C4033", "#C4A484", "#FF8BA0", "#D8452F",
     "#FF6B4A", "#EE9B00", "#FFD84D", "#F4E3B2", "#B7E4C7", "#2A9D8F", "#6E9A4E", "#0A9396",
@@ -1269,6 +1446,7 @@
 
     function onDown(e) {
       e.preventDefault();
+      if (dockDragging) return;
       if (activePtr != null && activeType !== "pen" && e.pointerType === "pen") {
         if (current && current.type === "stroke" && current.points.length) commit(current);
         current = null; activePtr = null;
@@ -1327,6 +1505,15 @@
     var dock = el("div", "taps-markup-dock");
     dock.setAttribute("role", "toolbar");
     dock.setAttribute("aria-label", "Markup tools");
+    var dockDragging = false, dockCustom = false, dockFrac = null;
+    var dockPad = 8;
+    var grip = el("div", "taps-markup-grip");
+    grip.title = "Drag toolbar. Double-tap to reset.";
+    grip.setAttribute("role", "button");
+    grip.tabIndex = 0;
+    grip.setAttribute("aria-label", "Move toolbar. Double-tap to reset.");
+    grip.innerHTML = '<span class="taps-markup-grip-dots" aria-hidden="true"></span>';
+    dock.appendChild(grip);
 
     var colorTray = el("div", "taps-markup-tray taps-markup-tray-color");
     colorTray.appendChild(el("div", "taps-markup-caret"));
@@ -1465,6 +1652,134 @@
     dock.appendChild(el("div", "taps-markup-sep"));
     dock.appendChild(colorBtn);
 
+    function viewport() {
+      return { w: window.innerWidth || document.documentElement.clientWidth || 0, h: window.innerHeight || document.documentElement.clientHeight || 0 };
+    }
+    function clampWrap(left, top) {
+      var vp = viewport();
+      var w = dockWrap.offsetWidth || 0, h = dockWrap.offsetHeight || 0;
+      var maxL = Math.max(dockPad, vp.w - w - dockPad);
+      var maxT = Math.max(dockPad, vp.h - h - dockPad);
+      return { left: Math.max(dockPad, Math.min(left, maxL)), top: Math.max(dockPad, Math.min(top, maxT)) };
+    }
+    function layoutTraySide() {
+      var vp = viewport();
+      var r = dock.getBoundingClientRect();
+      var above = r.top, below = vp.h - r.bottom;
+      var openUp = above >= below;
+      dockWrap.classList.toggle("trays-below", !openUp);
+      dockWrap.classList.toggle("trays-above", openUp);
+    }
+    function dockFractions() {
+      var vp = viewport();
+      var r = dock.getBoundingClientRect();
+      var vw = vp.w || 1, vh = vp.h || 1;
+      return { x: (r.left + r.width / 2) / vw, y: (r.top + r.height / 2) / vh };
+    }
+    function setWrapPos(left, top) {
+      var c = clampWrap(left, top);
+      dockWrap.style.left = c.left + "px";
+      dockWrap.style.top = c.top + "px";
+      return c;
+    }
+    function placeDefault() {
+      dockCustom = false;
+      dockWrap.classList.add("trays-above");
+      dockWrap.classList.remove("trays-below");
+      var vp = viewport();
+      var w = dockWrap.offsetWidth || 0, h = dockWrap.offsetHeight || 0;
+      setWrapPos((vp.w - w) / 2, vp.h - h - 16);
+      layoutTraySide();
+      setWrapPos(parseFloat(dockWrap.style.left) || 0, parseFloat(dockWrap.style.top) || 0);
+      dockFrac = dockFractions();
+    }
+    function placeFromFractions(frac) {
+      if (!frac || !isFinite(frac.x) || !isFinite(frac.y)) { placeDefault(); return; }
+      dockCustom = true;
+      var vp = viewport();
+      var dr = dock.getBoundingClientRect();
+      var wr = dockWrap.getBoundingClientRect();
+      var cx = frac.x * (vp.w || 1), cy = frac.y * (vp.h || 1);
+      var left = cx - dr.width / 2 - (dr.left - wr.left);
+      var top = cy - dr.height / 2 - (dr.top - wr.top);
+      setWrapPos(left, top);
+      layoutTraySide();
+      dr = dock.getBoundingClientRect();
+      wr = dockWrap.getBoundingClientRect();
+      left = cx - dr.width / 2 - (dr.left - wr.left);
+      top = cy - dr.height / 2 - (dr.top - wr.top);
+      setWrapPos(left, top);
+      var measured = dock.getBoundingClientRect();
+      dockFrac = (measured.width > 0 && measured.height > 0) ? dockFractions() : { x: frac.x, y: frac.y };
+    }
+    function layoutDock() {
+      if (dockCustom && dockFrac) placeFromFractions(dockFrac);
+      else placeDefault();
+    }
+    function resetDock() {
+      clearDockFrac();
+      dockFrac = null;
+      placeDefault();
+    }
+    function initDockPosition() {
+      var saved = loadDockFrac();
+      if (saved) placeFromFractions(saved);
+      else placeDefault();
+    }
+    var gripPtr = null, gripMoved = false, gripStartX = 0, gripStartY = 0, gripLeft = 0, gripTop = 0, lastGripTap = 0;
+    function onGripDown(e) {
+      if (gripPtr != null) return;
+      e.preventDefault();
+      e.stopPropagation();
+      gripPtr = e.pointerId;
+      dockDragging = true;
+      gripMoved = false;
+      gripStartX = e.clientX; gripStartY = e.clientY;
+      gripLeft = parseFloat(dockWrap.style.left) || 0;
+      gripTop = parseFloat(dockWrap.style.top) || 0;
+      dockWrap.classList.add("dragging");
+      try { grip.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    function onGripMove(e) {
+      if (e.pointerId !== gripPtr) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var dx = e.clientX - gripStartX, dy = e.clientY - gripStartY;
+      if (!gripMoved && (dx * dx + dy * dy) < 64) return;
+      gripMoved = true;
+      setWrapPos(gripLeft + dx, gripTop + dy);
+      layoutTraySide();
+      setWrapPos(parseFloat(dockWrap.style.left) || 0, parseFloat(dockWrap.style.top) || 0);
+    }
+    function onGripUp(e) {
+      if (e.pointerId !== gripPtr) return;
+      e.preventDefault();
+      e.stopPropagation();
+      gripPtr = null;
+      dockDragging = false;
+      dockWrap.classList.remove("dragging");
+      if (gripMoved) {
+        dockCustom = true;
+        dockFrac = dockFractions();
+        saveDockFrac(dockFrac);
+        lastGripTap = 0;
+      } else {
+        var now = Date.now();
+        if (lastGripTap && now - lastGripTap <= 400) {
+          lastGripTap = 0;
+          resetDock();
+        } else lastGripTap = now;
+      }
+    }
+    grip.addEventListener("pointerdown", onGripDown, { passive: false });
+    grip.addEventListener("pointermove", onGripMove, { passive: false });
+    grip.addEventListener("pointerup", onGripUp, { passive: false });
+    grip.addEventListener("pointercancel", onGripUp, { passive: false });
+    grip.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    markupDockResize = function () { layoutDock(); };
+    window.addEventListener("resize", markupDockResize);
+    window.addEventListener("orientationchange", markupDockResize);
+
     function setActive(btn, on) { btn.classList.toggle("active", !!on); }
     function syncChrome() {
       setActive(penBtn, tool === "pen");
@@ -1498,6 +1813,7 @@
       stampTray.hidden = openTray !== "stamps";
       inkCv.style.cursor = tool === "stamp" ? "pointer" : (tool === "erase" ? "cell" : "crosshair");
       dockWrap.classList.toggle("has-tray", !!openTray);
+      layoutDock();
     }
 
     layers.appendChild(boardCv);
@@ -1512,6 +1828,7 @@
     markupEl = wrap;
     redraw();
     syncChrome();
+    initDockPosition();
 
     markupApi = {
       tool: function () { return tool; },
@@ -1540,7 +1857,21 @@
       tray: function () { return openTray; },
       staffName: function () { return staffName; },
       boardCanvas: function () { return boardCv; },
-      inkCanvas: function () { return inkCv; }
+      inkCanvas: function () { return inkCv; },
+      dockKey: MARKUP_DOCK_POS_KEY,
+      dockPos: function () { return { left: parseFloat(dockWrap.style.left) || 0, top: parseFloat(dockWrap.style.top) || 0, frac: dockFractions(), custom: dockCustom, traySide: dockWrap.classList.contains("trays-below") ? "below" : "above" }; },
+      moveDock: function (left, top) {
+        dockCustom = true;
+        setWrapPos(left, top);
+        layoutTraySide();
+        var c = setWrapPos(parseFloat(dockWrap.style.left) || 0, parseFloat(dockWrap.style.top) || 0);
+        dockFrac = dockFractions();
+        saveDockFrac(dockFrac);
+        return c;
+      },
+      resetDock: resetDock,
+      layoutDock: layoutDock,
+      grip: function () { return grip; }
     };
   }
 
@@ -1608,6 +1939,7 @@
       colors: MARKUP_COLORS,
       staffNames: STAFF_NAMES,
       prefsKey: MARKUP_PREFS_KEY,
+      dockKey: MARKUP_DOCK_POS_KEY,
       penWidths: PEN_WIDTHS,
       hiWidths: HI_WIDTHS
     };
@@ -1676,7 +2008,7 @@
     overlay.classList.remove("open");
     document.documentElement.classList.remove("taps-lock");
     stopPoll();
-    items = []; answers = []; editing = {}; modifyDraft = {};
+    items = []; answers = []; editing = {}; modifyDraft = {}; noteOpen = {};
     openState = {}; cardOpen = {}; localSection = {};
     addOpen = false; addDraft = { patient: "", appt: "", note: "" };
     if (body) body.textContent = "";
