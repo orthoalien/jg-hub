@@ -956,6 +956,7 @@
     if (markupEl.parentNode) markupEl.parentNode.removeChild(markupEl);
     markupEl = null;
     markupBusy = false;
+    markupApi = null;
   }
 
   function canvasToPngBlob(canvas) {
@@ -971,109 +972,576 @@
     });
   }
 
+  var MARKUP_PREFS_KEY = "itap-markup-prefs-v1";
+  var MARKUP_COLORS = [
+    "#FFFFFF", "#D5D8D6", "#8A8F8C", "#001219", "#5C4033", "#C4A484", "#FF8BA0", "#D8452F",
+    "#FF6B4A", "#EE9B00", "#FFD84D", "#F4E3B2", "#B7E4C7", "#2A9D8F", "#6E9A4E", "#0A9396",
+    "#94D2BD", "#CAFFBF", "#7DD3FC", "#1F7A9E", "#3F6E9A", "#6B4E8F", "#7B4FE0", "#E0A6FF"
+  ];
+  var PEN_WIDTHS = [3, 6, 11];
+  var HI_WIDTHS = [16, 26, 40];
+  var RUB_WIDTH = 28;
+  var STAFF_NAMES = ["Tati", "Sarah", "Kiara", "Jess", "Trish", "Eric", "Destinee", "Dr. Grace", "Dr. Rana"];
+  var markupApi = null;
+
+  function markupDefaultPrefs() {
+    return { pen: { color: "#D8452F", widthIndex: 1 }, highlight: { color: "#FFD84D", widthIndex: 1 }, eraseMode: "stroke" };
+  }
+  function markupKnownColor(c) {
+    var i, hex = String(c || "").toUpperCase();
+    for (i = 0; i < MARKUP_COLORS.length; i++) if (MARKUP_COLORS[i].toUpperCase() === hex) return MARKUP_COLORS[i];
+    return "";
+  }
+  function loadMarkupPrefs() {
+    var d = markupDefaultPrefs(), raw, p;
+    try { raw = localStorage.getItem(MARKUP_PREFS_KEY); } catch (e) { return d; }
+    if (!raw) return d;
+    try { p = JSON.parse(raw); } catch (e2) { return d; }
+    if (!p || typeof p !== "object") return d;
+    if (p.pen && markupKnownColor(p.pen.color)) d.pen.color = markupKnownColor(p.pen.color);
+    if (p.pen && p.pen.widthIndex >= 0 && p.pen.widthIndex <= 2) d.pen.widthIndex = p.pen.widthIndex | 0;
+    if (p.highlight && markupKnownColor(p.highlight.color)) d.highlight.color = markupKnownColor(p.highlight.color);
+    if (p.highlight && p.highlight.widthIndex >= 0 && p.highlight.widthIndex <= 2) d.highlight.widthIndex = p.highlight.widthIndex | 0;
+    if (p.eraseMode === "rub" || p.eraseMode === "stroke") d.eraseMode = p.eraseMode;
+    return d;
+  }
+  function saveMarkupPrefs(p) {
+    try { localStorage.setItem(MARKUP_PREFS_KEY, JSON.stringify(p)); } catch (e) {}
+  }
+
+  function hideClosedTapGroups(doc) {
+    var root = doc || document;
+    var nodes = root.querySelectorAll("details.tap-group:not([open])");
+    Array.prototype.forEach.call(nodes, function (d) {
+      Array.prototype.forEach.call(d.children, function (ch) {
+        if (ch.tagName !== "SUMMARY") ch.style.display = "none";
+      });
+    });
+  }
+
+  function distToSeg(p, a, b) {
+    var dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy, t = 0;
+    if (len2 > 0) t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+    var x = a.x + t * dx, y = a.y + t * dy, ex = p.x - x, ey = p.y - y;
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  function colorWithAlpha(hex, a) {
+    var h = String(hex || "").replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    if (h.length !== 6) return "rgba(255,216,77," + a + ")";
+    var r = parseInt(h.slice(0, 2), 16), g = parseInt(h.slice(2, 4), 16), b = parseInt(h.slice(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a + ")";
+  }
+  function stampUnit(srcW) { return Math.max(0.75, srcW / 1000); }
+
+  function getStampRect(st, srcW) {
+    var u = stampUnit(srcW), kind = st.kind, label = st.label || "";
+    if (kind === "call" || kind === "tap" || kind === "staff") {
+      var text = kind === "staff" ? label : (kind === "call" ? "CALL" : "TAP");
+      var w = Math.max(52, 12 * u * 0.62 * text.length + 28 * u);
+      var h = 28 * u;
+      return { x: st.x - w / 2, y: st.y - h / 2, w: w, h: h };
+    }
+    var s = 32 * u;
+    return { x: st.x - s, y: st.y - s, w: s * 2, h: s * 2 };
+  }
+
+  function drawStamp(ctx, st, srcW) {
+    var u = stampUnit(srcW), kind = st.kind, x = st.x, y = st.y, r = 16 * u;
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    if (kind === "check" || kind === "x" || kind === "question") {
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fillStyle = kind === "check" ? "#2A9D8F" : (kind === "x" ? "#D8452F" : "#FFD84D");
+      ctx.fill();
+      if (kind === "check") {
+        ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 2.6 * u;
+        ctx.beginPath(); ctx.moveTo(x - 6.2 * u, y + 0.4 * u); ctx.lineTo(x - 2 * u, y + 4.6 * u); ctx.lineTo(x + 7.2 * u, y - 5.4 * u); ctx.stroke();
+      } else if (kind === "x") {
+        ctx.strokeStyle = "#FFFFFF"; ctx.lineWidth = 2.6 * u;
+        ctx.beginPath(); ctx.moveTo(x - 5.6 * u, y - 5.6 * u); ctx.lineTo(x + 5.6 * u, y + 5.6 * u);
+        ctx.moveTo(x + 5.6 * u, y - 5.6 * u); ctx.lineTo(x - 5.6 * u, y + 5.6 * u); ctx.stroke();
+      } else {
+        ctx.fillStyle = "#1a1a1a";
+        ctx.font = "800 " + Math.round(18 * u) + "px Figtree, sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText("?", x, y + 0.5 * u);
+      }
+    } else if (kind === "star") {
+      var i, n = 5, ro = 16 * u, ri = 6.5 * u;
+      ctx.beginPath();
+      for (i = 0; i < n * 2; i++) {
+        var ang = -Math.PI / 2 + i * Math.PI / n, rad = i % 2 === 0 ? ro : ri;
+        var px = x + Math.cos(ang) * rad, py = y + Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fillStyle = "#EE9B00"; ctx.fill();
+    } else if (kind === "arrow") {
+      ctx.strokeStyle = "#E9F5F2"; ctx.lineWidth = 2.6 * u;
+      ctx.beginPath(); ctx.moveTo(x - 16 * u, y); ctx.lineTo(x + 14 * u, y);
+      ctx.moveTo(x + 4 * u, y - 8 * u); ctx.lineTo(x + 16 * u, y); ctx.lineTo(x + 4 * u, y + 8 * u); ctx.stroke();
+    } else if (kind === "call" || kind === "tap" || kind === "staff") {
+      var text = kind === "staff" ? String(st.label || "") : (kind === "call" ? "CALL" : "TAP");
+      var box = getStampRect(st, srcW);
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(box.x, box.y, box.w, box.h, box.h / 2);
+      else {
+        var rr = box.h / 2;
+        ctx.moveTo(box.x + rr, box.y); ctx.arcTo(box.x + box.w, box.y, box.x + box.w, box.y + box.h, rr);
+        ctx.arcTo(box.x + box.w, box.y + box.h, box.x, box.y + box.h, rr);
+        ctx.arcTo(box.x, box.y + box.h, box.x, box.y, rr); ctx.arcTo(box.x, box.y, box.x + box.w, box.y, rr);
+      }
+      ctx.fillStyle = kind === "call" ? "#EE9B00" : (kind === "tap" ? "#2A9D8F" : "#6B4E8F");
+      ctx.fill();
+      ctx.fillStyle = kind === "staff" ? "#FFFFFF" : "#001219";
+      ctx.font = "800 " + Math.round(12 * u) + "px Figtree, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      ctx.fillText(text, x, y + 0.4 * u);
+    }
+    ctx.restore();
+  }
+
+  function drawStrokePath(ctx, st) {
+    if (!st.points || !st.points.length) return;
+    ctx.save();
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.lineWidth = st.width;
+    if (st.mode === "rub") {
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.strokeStyle = "rgba(0,0,0,1)";
+    } else if (st.mode === "highlight") {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = colorWithAlpha(st.color, 0.52);
+    } else {
+      ctx.globalCompositeOperation = "source-over";
+      ctx.strokeStyle = st.color;
+    }
+    ctx.beginPath();
+    ctx.moveTo(st.points[0].x, st.points[0].y);
+    var i;
+    for (i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
+    if (st.points.length === 1) ctx.lineTo(st.points[0].x + 0.1, st.points[0].y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function hitObject(obj, p, srcW) {
+    var i, slop, box;
+    if (obj.type === "stamp") {
+      box = getStampRect(obj, srcW);
+      return p.x >= box.x && p.x <= box.x + box.w && p.y >= box.y && p.y <= box.y + box.h;
+    }
+    if (obj.type === "stroke" && obj.points && obj.points.length) {
+      slop = (obj.width || 4) / 2 + 8;
+      if (obj.points.length === 1) {
+        var dx = p.x - obj.points[0].x, dy = p.y - obj.points[0].y;
+        return Math.sqrt(dx * dx + dy * dy) <= slop;
+      }
+      for (i = 1; i < obj.points.length; i++) {
+        if (distToSeg(p, obj.points[i - 1], obj.points[i]) <= slop) return true;
+      }
+    }
+    return false;
+  }
+
+  function svgIcon(html, w) {
+    w = w || 26;
+    return '<svg width="' + w + '" height="' + w + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' + html + "</svg>";
+  }
+
   function openMarkupOverlay(imageCanvas) {
     closeMarkup();
+    var prefs = loadMarkupPrefs();
+    var tool = "pen";
+    var eraseMode = prefs.eraseMode;
+    var penColor = prefs.pen.color, penW = prefs.pen.widthIndex;
+    var hiColor = prefs.highlight.color, hiW = prefs.highlight.widthIndex;
+    var objects = [];
+    var redoStack = [];
+    var current = null, activePtr = null, activeType = "";
+    var armedStamp = null, staffName = "";
+    var openTray = "";
+    var srcW = imageCanvas.width, srcH = imageCanvas.height;
+
     var wrap = el("div", "taps-markup");
     wrap.setAttribute("role", "dialog");
     wrap.setAttribute("aria-label", "Markup");
-    var tools = el("div", "taps-markup-tools");
-    var colors = [
-      ["ink", "#001219", "Dark ink"],
-      ["red", "#D8452F", "Red"],
-      ["ocean", "#1F7A9E", "Ocean blue"]
-    ];
-    var tool = "pen", color = colors[0][1], strokes = [], current = null, activePtr = null, activeType = "";
+
+    var chrome = el("div", "taps-markup-chrome");
+    var chromeLeft = el("div", "taps-markup-chrome-left");
+    var chromeTitle = el("div", "taps-markup-chrome-title", "Markup");
     var stage = el("div", "taps-markup-stage");
-    var canvas = document.createElement("canvas");
-    canvas.className = "taps-markup-canvas";
-    canvas.setAttribute("aria-label", "Drawing area");
-    var srcW = imageCanvas.width, srcH = imageCanvas.height;
-    canvas.width = srcW; canvas.height = srcH;
-    var ctx = canvas.getContext("2d");
+    var layers = el("div", "taps-markup-layers");
+
+    var boardCv = document.createElement("canvas");
+    boardCv.className = "taps-markup-board";
+    boardCv.width = srcW; boardCv.height = srcH;
+    boardCv.setAttribute("aria-hidden", "true");
+    var boardCtx = boardCv.getContext("2d");
+    if (boardCtx) boardCtx.drawImage(imageCanvas, 0, 0);
+
+    var inkCv = document.createElement("canvas");
+    inkCv.className = "taps-markup-canvas";
+    inkCv.width = srcW; inkCv.height = srcH;
+    inkCv.setAttribute("aria-label", "Drawing area");
+    var inkCtx = inkCv.getContext("2d");
+
+    function persist() {
+      saveMarkupPrefs({
+        pen: { color: penColor, widthIndex: penW },
+        highlight: { color: hiColor, widthIndex: hiW },
+        eraseMode: eraseMode
+      });
+    }
+    function commit(obj) {
+      objects.push(obj);
+      redoStack = [];
+      redraw();
+      syncChrome();
+    }
     function redraw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(imageCanvas, 0, 0);
-      strokes.forEach(drawStroke);
+      if (!inkCtx) return;
+      inkCtx.clearRect(0, 0, srcW, srcH);
+      objects.forEach(function (obj) {
+        if (obj.type === "stroke") drawStrokePath(inkCtx, obj);
+        else if (obj.type === "stamp") drawStamp(inkCtx, obj, srcW);
+      });
     }
-    function drawStroke(st) {
-      if (!st.points.length) return;
-      ctx.save();
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      ctx.lineWidth = st.width;
-      if (st.mode === "erase") { ctx.globalCompositeOperation = "destination-out"; ctx.strokeStyle = "rgba(0,0,0,1)"; }
-      else { ctx.globalCompositeOperation = "source-over"; ctx.strokeStyle = st.color; }
-      ctx.beginPath();
-      ctx.moveTo(st.points[0].x, st.points[0].y);
-      for (var i = 1; i < st.points.length; i++) ctx.lineTo(st.points[i].x, st.points[i].y);
-      if (st.points.length === 1) { ctx.lineTo(st.points[0].x + 0.1, st.points[0].y); }
-      ctx.stroke();
-      ctx.restore();
+    function flattenCanvas() {
+      var out = document.createElement("canvas");
+      out.width = srcW; out.height = srcH;
+      var ctx = out.getContext("2d");
+      if (ctx) {
+        if (boardCv) ctx.drawImage(boardCv, 0, 0);
+        if (inkCv) ctx.drawImage(inkCv, 0, 0);
+      }
+      return out;
     }
-    function pt(e) {
-      var r = canvas.getBoundingClientRect();
-      return { x: (e.clientX - r.left) * (canvas.width / r.width), y: (e.clientY - r.top) * (canvas.height / r.height) };
+    function pt(e, target) {
+      var r = (target || inkCv).getBoundingClientRect();
+      var rw = r.width || 1, rh = r.height || 1;
+      return { x: (e.clientX - r.left) * (srcW / rw), y: (e.clientY - r.top) * (srcH / rh) };
     }
+    function currentStyle() {
+      if (tool === "highlight") return { mode: "highlight", color: hiColor, width: HI_WIDTHS[hiW] };
+      if (tool === "erase" && eraseMode === "rub") return { mode: "rub", color: "#000000", width: RUB_WIDTH };
+      return { mode: "pen", color: penColor, width: PEN_WIDTHS[penW] };
+    }
+
+    function undo() {
+      if (current) return;
+      if (!objects.length) return;
+      redoStack.push(objects.pop());
+      redraw(); syncChrome();
+    }
+    function redo() {
+      if (current) return;
+      if (!redoStack.length) return;
+      objects.push(redoStack.pop());
+      redraw(); syncChrome();
+    }
+    function clearAll() {
+      if (!objects.length) return;
+      redoStack = [];
+      objects = [];
+      redraw(); syncChrome();
+    }
+    function eraseStrokeAt(p) {
+      var i, hit;
+      for (i = objects.length - 1; i >= 0; i--) {
+        if (hitObject(objects[i], p, srcW)) {
+          hit = objects.splice(i, 1)[0];
+          redoStack = [];
+          redraw(); syncChrome();
+          return hit;
+        }
+      }
+      return null;
+    }
+    function placeStampAt(p) {
+      if (!armedStamp) return null;
+      var st = { type: "stamp", kind: armedStamp.kind, label: armedStamp.label || "", x: p.x, y: p.y };
+      if (st.kind === "staff" && !st.label) return null;
+      commit(st);
+      return st;
+    }
+
     function onDown(e) {
       e.preventDefault();
       if (activePtr != null && activeType !== "pen" && e.pointerType === "pen") {
-        if (current && current.points.length) strokes.push(current);
+        if (current && current.type === "stroke" && current.points.length) commit(current);
         current = null; activePtr = null;
       }
       if (activePtr != null) return;
       activePtr = e.pointerId; activeType = e.pointerType;
-      try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
-      current = { mode: tool, color: color, width: tool === "erase" ? 24 : 4, points: [pt(e)] };
-      drawStroke(current);
+      try { inkCv.setPointerCapture(e.pointerId); } catch (err) {}
+      var p = pt(e);
+      if (tool === "stamp") { placeStampAt(p); return; }
+      if (tool === "erase" && eraseMode === "stroke") { eraseStrokeAt(p); return; }
+      var st = currentStyle();
+      current = { type: "stroke", mode: st.mode, color: st.color, width: st.width, points: [p] };
+      redraw();
+      if (current) drawStrokePath(inkCtx, current);
     }
     function onMove(e) {
-      if (e.pointerId !== activePtr || !current) return;
+      if (e.pointerId !== activePtr) return;
+      if (tool === "stamp" || (tool === "erase" && eraseMode === "stroke")) return;
+      if (!current) return;
       e.preventDefault();
       current.points.push(pt(e));
       redraw();
-      if (current) drawStroke(current);
+      if (current) drawStrokePath(inkCtx, current);
     }
     function onUp(e) {
       if (e.pointerId !== activePtr) return;
       e.preventDefault();
-      if (current && current.points.length) strokes.push(current);
+      if (current && current.type === "stroke" && current.points.length) commit(current);
+      else { current = null; redraw(); }
       current = null; activePtr = null; activeType = "";
-      redraw();
     }
-    canvas.addEventListener("pointerdown", onDown, { passive: false });
-    canvas.addEventListener("pointermove", onMove, { passive: false });
-    canvas.addEventListener("pointerup", onUp, { passive: false });
-    canvas.addEventListener("pointercancel", onUp, { passive: false });
-    canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+    inkCv.addEventListener("pointerdown", onDown, { passive: false });
+    inkCv.addEventListener("pointermove", onMove, { passive: false });
+    inkCv.addEventListener("pointerup", onUp, { passive: false });
+    inkCv.addEventListener("pointercancel", onUp, { passive: false });
+    inkCv.addEventListener("contextmenu", function (e) { e.preventDefault(); });
 
     function mkBtn(cls, label, title, fn) {
       var b = el("button", cls, label); b.type = "button"; b.title = title; b.setAttribute("aria-label", title);
       b.addEventListener("click", fn); return b;
     }
-    var penBtn = mkBtn("tap-btn primary taps-markup-tool active", "Pen", "Pen", function () { tool = "pen"; syncTools(); });
-    tools.appendChild(penBtn);
-    var colorBtns = [];
-    colors.forEach(function (c) {
-      var b = mkBtn("taps-markup-color" + (c[1] === color ? " active" : ""), "", c[2], function () { color = c[1]; tool = "pen"; syncTools(); });
-      b.style.background = c[1];
-      b.dataset.color = c[1];
-      colorBtns.push(b); tools.appendChild(b);
-    });
-    var eraseBtn = mkBtn("tap-btn primary taps-markup-tool", "Eraser", "Eraser", function () { tool = "erase"; syncTools(); });
-    tools.appendChild(eraseBtn);
-    tools.appendChild(mkBtn("tap-btn primary", "Undo", "Undo", function () { strokes.pop(); redraw(); }));
-    function syncTools() {
-      penBtn.classList.toggle("active", tool === "pen");
-      eraseBtn.classList.toggle("active", tool === "erase");
-      colorBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.color === color && tool === "pen"); });
+    function mkTile(title, svg, label, fn) {
+      var b = mkBtn("taps-markup-tile", "", title, fn);
+      b.innerHTML = svg + (label ? '<span class="taps-markup-tile-lbl">' + label + "</span>" : "");
+      return b;
     }
-    var cancel = mkBtn("tap-btn primary", "Cancel", "Cancel", function () { closeMarkup(); });
-    var send = mkBtn("tap-btn primary", "Send", "Send", function () { sendMarkup(canvas, send); });
-    tools.appendChild(cancel); tools.appendChild(send);
-    stage.appendChild(canvas);
-    wrap.appendChild(tools); wrap.appendChild(stage);
+
+    var cancelBtn = mkBtn("tap-btn", "Cancel", "Cancel", function () { closeMarkup(); });
+    var clearBtn = mkBtn("tap-btn", "Clear", "Clear", function () { clearAll(); });
+    var sendBtn = mkBtn("tap-btn primary", "Send", "Send", function () { sendMarkup(flattenCanvas(), sendBtn); });
+    chromeLeft.appendChild(cancelBtn); chromeLeft.appendChild(clearBtn);
+    chrome.appendChild(chromeLeft); chrome.appendChild(chromeTitle); chrome.appendChild(sendBtn);
+
+    var dockWrap = el("div", "taps-markup-dock-wrap");
+    var trays = el("div", "taps-markup-trays");
+    var dock = el("div", "taps-markup-dock");
+    dock.setAttribute("role", "toolbar");
+    dock.setAttribute("aria-label", "Markup tools");
+
+    var colorTray = el("div", "taps-markup-tray taps-markup-tray-color");
+    colorTray.appendChild(el("div", "taps-markup-caret"));
+    var colorLbl = el("div", "taps-markup-tray-label", "Pen · color & thickness");
+    colorTray.appendChild(colorLbl);
+    var nubs = el("div", "taps-markup-thickness");
+    var nubBtns = [0, 1, 2].map(function (idx) {
+      var b = mkBtn("taps-markup-nib t" + (idx + 1), "", "Thickness " + (idx + 1), function () {
+        if (tool === "highlight") hiW = idx; else { tool = "pen"; penW = idx; }
+        persist(); syncChrome();
+      });
+      b.appendChild(el("i", null));
+      nubs.appendChild(b);
+      return b;
+    });
+    colorTray.appendChild(nubs);
+    var palette = el("div", "taps-markup-palette");
+    palette.setAttribute("aria-label", "24-color palette");
+    var swatchBtns = MARKUP_COLORS.map(function (c) {
+      var b = mkBtn("taps-markup-swatch" + (c === "#FFFFFF" ? " white" : ""), "", c, function () {
+        if (tool === "highlight") hiColor = c; else { tool = "pen"; penColor = c; }
+        persist(); syncChrome();
+      });
+      b.style.background = c;
+      b.dataset.color = c;
+      palette.appendChild(b);
+      return b;
+    });
+    colorTray.appendChild(palette);
+
+    var eraseTray = el("div", "taps-markup-tray taps-markup-tray-erase");
+    eraseTray.appendChild(el("div", "taps-markup-tray-label", "Eraser"));
+    var modes = el("div", "taps-markup-erase-modes");
+    var strokeModeBtn = mkBtn("taps-markup-mode", "Whole stroke", "Whole stroke eraser", function () { eraseMode = "stroke"; persist(); syncChrome(); });
+    var rubModeBtn = mkBtn("taps-markup-mode", "Rub out", "Rub-out eraser", function () { eraseMode = "rub"; persist(); syncChrome(); });
+    modes.appendChild(strokeModeBtn); modes.appendChild(rubModeBtn);
+    eraseTray.appendChild(modes);
+
+    var stampTray = el("div", "taps-markup-tray taps-markup-tray-stamps");
+    stampTray.appendChild(el("div", "taps-markup-tray-label", "Stamps"));
+    var stampRow = el("div", "taps-markup-stamps");
+    function stampSvg(kind) {
+      if (kind === "check") return '<svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#2A9D8F"/><path d="M7.5 13.4l3.4 3.4 7.6-7.8" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      if (kind === "x") return '<svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#D8452F"/><path d="M8.2 8.2l9.6 9.6M17.8 8.2l-9.6 9.6" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/></svg>';
+      if (kind === "star") return '<svg width="26" height="26" viewBox="0 0 24 24"><path d="M12 2.6l2.7 6.1 6.6.7-5 4.6 1.4 6.5L12 17.3 6.3 20.5 7.7 14 2.7 9.4l6.6-.7L12 2.6z" fill="#EE9B00"/></svg>';
+      if (kind === "arrow") return '<svg width="28" height="26" viewBox="0 0 28 26" fill="none" stroke="#E9F5F2" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 13h18M16 6l8 7-8 7"/></svg>';
+      if (kind === "question") return '<svg width="26" height="26" viewBox="0 0 26 26"><circle cx="13" cy="13" r="12" fill="#FFD84D"/><text x="13" y="18" text-anchor="middle" font-size="16" font-weight="800" font-family="Figtree, sans-serif" fill="#1a1a1a">?</text></svg>';
+      return "";
+    }
+    var stampKinds = [
+      ["check", "Check", ""],
+      ["x", "X", ""],
+      ["star", "Star", ""],
+      ["arrow", "Arrow", ""],
+      ["question", "Question", ""],
+      ["call", "CALL", "call"],
+      ["tap", "TAP", "tap"],
+      ["staff", "STAFF", "staff"]
+    ];
+    var stampBtns = {};
+    stampKinds.forEach(function (row) {
+      var kind = row[0], title = row[1], extra = row[2];
+      var b = mkBtn("taps-markup-stamp" + (extra ? " pill " + extra : ""), extra ? title : "", title, function () {
+        tool = "stamp";
+        if (kind === "staff") {
+          armedStamp = staffName ? { kind: "staff", label: staffName } : null;
+          openTray = "stamps";
+        } else {
+          armedStamp = { kind: kind, label: "" };
+          openTray = "stamps";
+        }
+        syncChrome();
+      });
+      if (!extra) b.innerHTML = stampSvg(kind);
+      stampRow.appendChild(b);
+      stampBtns[kind] = b;
+    });
+    stampTray.appendChild(stampRow);
+    var staffRow = el("div", "taps-markup-staff");
+    staffRow.setAttribute("aria-label", "Staff names");
+    var staffBtns = STAFF_NAMES.map(function (name) {
+      var b = mkBtn("taps-markup-staff-btn", name, name, function () {
+        staffName = name;
+        tool = "stamp";
+        armedStamp = { kind: "staff", label: name };
+        openTray = "stamps";
+        syncChrome();
+      });
+      staffRow.appendChild(b);
+      return b;
+    });
+    stampTray.appendChild(staffRow);
+
+    trays.appendChild(colorTray);
+    trays.appendChild(eraseTray);
+    trays.appendChild(stampTray);
+
+    var undoBtn = mkTile("Undo", svgIcon('<path d="M9 14l-5-5 5-5"/><path d="M4 9h9a7 7 0 1 1 0 14h-2"/>'), "", function () { undo(); });
+    var redoBtn = mkTile("Redo", svgIcon('<path d="M15 14l5-5-5-5"/><path d="M20 9H11a7 7 0 1 0 0 14h2"/>'), "", function () { redo(); });
+    var penBtn = mkTile("Pen", svgIcon('<path d="M15.4 4.2l4.4 4.4L8.4 20H4v-4.4L15.4 4.2z"/><path d="M13.7 5.9l4.4 4.4"/>'), "Pen", function () {
+      if (tool === "pen" && openTray === "color") openTray = "";
+      else { tool = "pen"; openTray = "color"; }
+      syncChrome();
+    });
+    var hiBtn = mkTile("Highlighter", svgIcon('<path d="M15.2 3.6l5.2 5.2-2.2 2.2-5.2-5.2 2.2-2.2z" fill="currentColor" opacity=".2"/><path d="M17.2 7.2L9 15.4l-4 1.2 1.2-4L14.4 4.4"/><path d="M3.8 19.8h11.4" stroke-width="3.4"/>'), "Highlight", function () {
+      if (tool === "highlight" && openTray === "color") openTray = "";
+      else { tool = "highlight"; openTray = "color"; }
+      syncChrome();
+    });
+    var eraseBtn = mkTile("Eraser", svgIcon('<path d="M4.2 14.8l7.6-7.6a2.3 2.3 0 0 1 3.2 0l3.6 3.6a2.3 2.3 0 0 1 0 3.2L12 20.6H7.4L4.2 17.4a2.3 2.3 0 0 1 0-2.6z"/><path d="M8.2 10.8l7.4 7.4"/><path d="M5 20.6h15.2"/>'), "Eraser", function () {
+      if (tool === "erase" && openTray === "erase") openTray = "";
+      else { tool = "erase"; openTray = "erase"; }
+      syncChrome();
+    });
+    var stampsBtn = mkTile("Stamps", svgIcon('<rect x="3.2" y="3.2" width="7.4" height="7.4" rx="1.6"/><rect x="13.4" y="3.2" width="7.4" height="7.4" rx="1.6"/><rect x="3.2" y="13.4" width="7.4" height="7.4" rx="1.6"/><rect x="13.4" y="13.4" width="7.4" height="7.4" rx="1.6"/>'), "Stamps", function () {
+      if (tool === "stamp" && openTray === "stamps") openTray = "";
+      else { tool = "stamp"; openTray = "stamps"; }
+      syncChrome();
+    });
+    var colorDot = el("div", "taps-markup-color-dot");
+    var colorBtn = mkBtn("taps-markup-tile", "", "Color palette", function () {
+      if (tool !== "pen" && tool !== "highlight") tool = "pen";
+      openTray = openTray === "color" ? "" : "color";
+      syncChrome();
+    });
+    colorBtn.appendChild(colorDot);
+    colorBtn.appendChild(el("span", "taps-markup-tile-lbl", "Color"));
+
+    dock.appendChild(undoBtn);
+    dock.appendChild(redoBtn);
+    dock.appendChild(el("div", "taps-markup-sep"));
+    dock.appendChild(penBtn);
+    dock.appendChild(hiBtn);
+    dock.appendChild(eraseBtn);
+    dock.appendChild(stampsBtn);
+    dock.appendChild(el("div", "taps-markup-sep"));
+    dock.appendChild(colorBtn);
+
+    function setActive(btn, on) { btn.classList.toggle("active", !!on); }
+    function syncChrome() {
+      setActive(penBtn, tool === "pen");
+      setActive(hiBtn, tool === "highlight");
+      setActive(eraseBtn, tool === "erase");
+      setActive(stampsBtn, tool === "stamp");
+      setActive(colorBtn, openTray === "color");
+      undoBtn.classList.toggle("dim", objects.length === 0);
+      redoBtn.classList.toggle("dim", redoStack.length === 0);
+      clearBtn.disabled = objects.length === 0;
+      var drawing = tool === "highlight" ? "highlight" : "pen";
+      var col = drawing === "highlight" ? hiColor : penColor;
+      var wIndex = drawing === "highlight" ? hiW : penW;
+      colorDot.style.background = col;
+      colorLbl.textContent = (drawing === "highlight" ? "Highlighter" : "Pen") + " · color & thickness";
+      nubBtns.forEach(function (b, i) {
+        b.classList.toggle("active", i === wIndex);
+        b.querySelector("i").style.background = col;
+      });
+      swatchBtns.forEach(function (b) { b.classList.toggle("active", b.dataset.color === col); });
+      setActive(strokeModeBtn, eraseMode === "stroke");
+      setActive(rubModeBtn, eraseMode === "rub");
+      Object.keys(stampBtns).forEach(function (k) {
+        var on = tool === "stamp" && armedStamp && armedStamp.kind === k;
+        setActive(stampBtns[k], on);
+      });
+      staffBtns.forEach(function (b) { setActive(b, staffName === b.getAttribute("aria-label")); });
+      staffRow.hidden = openTray !== "stamps";
+      colorTray.hidden = openTray !== "color";
+      eraseTray.hidden = openTray !== "erase";
+      stampTray.hidden = openTray !== "stamps";
+      inkCv.style.cursor = tool === "stamp" ? "pointer" : (tool === "erase" ? "cell" : "crosshair");
+      dockWrap.classList.toggle("has-tray", !!openTray);
+    }
+
+    layers.appendChild(boardCv);
+    layers.appendChild(inkCv);
+    stage.appendChild(layers);
+    dockWrap.appendChild(trays);
+    dockWrap.appendChild(dock);
+    wrap.appendChild(chrome);
+    wrap.appendChild(stage);
+    wrap.appendChild(dockWrap);
     document.body.appendChild(wrap);
     markupEl = wrap;
     redraw();
+    syncChrome();
+
+    markupApi = {
+      tool: function () { return tool; },
+      setTool: function (t, tray) { tool = t; if (tray !== undefined) openTray = tray; syncChrome(); },
+      eraseMode: function () { return eraseMode; },
+      setEraseMode: function (m) { eraseMode = m === "rub" ? "rub" : "stroke"; persist(); syncChrome(); },
+      pen: function () { return { color: penColor, widthIndex: penW, width: PEN_WIDTHS[penW] }; },
+      highlight: function () { return { color: hiColor, widthIndex: hiW, width: HI_WIDTHS[hiW] }; },
+      setPenColor: function (c) { if (markupKnownColor(c)) { penColor = markupKnownColor(c); persist(); syncChrome(); } },
+      setPenWidthIndex: function (i) { if (i >= 0 && i <= 2) { penW = i | 0; persist(); syncChrome(); } },
+      setHiColor: function (c) { if (markupKnownColor(c)) { hiColor = markupKnownColor(c); persist(); syncChrome(); } },
+      setHiWidthIndex: function (i) { if (i >= 0 && i <= 2) { hiW = i | 0; persist(); syncChrome(); } },
+      objects: function () { return objects.slice(); },
+      addStroke: function (st) { commit({ type: "stroke", mode: st.mode, color: st.color, width: st.width, points: st.points.slice() }); },
+      addStamp: function (kind, x, y, label) { commit({ type: "stamp", kind: kind, label: label || "", x: x, y: y }); },
+      setArmedStamp: function (kind, label) { armedStamp = kind ? { kind: kind, label: label || "" } : null; if (kind) tool = "stamp"; syncChrome(); },
+      setStaffName: function (n) { staffName = n; armedStamp = { kind: "staff", label: n }; tool = "stamp"; openTray = "stamps"; syncChrome(); },
+      placeStampAt: placeStampAt,
+      eraseStrokeAt: eraseStrokeAt,
+      undo: undo,
+      redo: redo,
+      clear: clearAll,
+      flatten: flattenCanvas,
+      prefs: loadMarkupPrefs,
+      persist: persist,
+      tray: function () { return openTray; },
+      staffName: function () { return staffName; },
+      boardCanvas: function () { return boardCv; },
+      inkCanvas: function () { return inkCv; }
+    };
   }
 
   function sendMarkup(canvas, btn) {
@@ -1118,7 +1586,7 @@
       var prevHeight = bodyEl ? bodyEl.style.height : "";
       if (bodyEl) { bodyEl.style.overflow = "visible"; bodyEl.style.height = "auto"; }
       loadHtml2Canvas().then(function (h2c) {
-        return h2c(panel, { backgroundColor: "#04202A", scale: 2, useCORS: true, logging: false });
+        return h2c(panel, { backgroundColor: "#04202A", scale: 2, useCORS: true, logging: false, onclone: function (doc) { hideClosedTapGroups(doc); } });
       }).then(function (cv) {
         if (bodyEl) { bodyEl.style.overflow = prevOverflow; bodyEl.style.height = prevHeight; }
         openMarkupOverlay(cv);
@@ -1128,6 +1596,21 @@
         setStatus("Couldn't capture the board.", "warn");
       });
     }, false, true);
+  }
+
+
+  if (window.TAPS_TEST) {
+    window.__itapMarkup = {
+      open: openMarkupOverlay,
+      close: closeMarkup,
+      hideClosedTapGroups: hideClosedTapGroups,
+      api: function () { return markupApi; },
+      colors: MARKUP_COLORS,
+      staffNames: STAFF_NAMES,
+      prefsKey: MARKUP_PREFS_KEY,
+      penWidths: PEN_WIDTHS,
+      hiWidths: HI_WIDTHS
+    };
   }
 
   function build() {

@@ -263,29 +263,223 @@ a.tap-btn.tap-open { display: inline-flex; align-items: center; text-decoration:
   -webkit-user-select: none; user-select: none;
   padding-top: env(safe-area-inset-top);
 }
-.taps-markup-tools {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-  padding: 10px 12px; flex-shrink: 0;
+.taps-markup-chrome {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; flex-shrink: 0; position: relative;
+  padding: 8px 16px;
+  padding-top: max(8px, env(safe-area-inset-top));
+  background: linear-gradient(180deg, rgba(0,18,25,.94) 60%, rgba(0,18,25,.7) 100%);
   border-bottom: 1px solid rgba(148, 210, 189, 0.14);
   touch-action: manipulation;
+  z-index: 2;
 }
-.taps-markup-tool.active { box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.55); }
-.taps-markup-color {
-  width: 36px; height: 36px; border-radius: 50%; cursor: pointer; padding: 0;
-  border: 2px solid rgba(233, 245, 242, 0.35);
-  touch-action: manipulation;
+.taps-markup-chrome-left { display: flex; gap: 8px; }
+.taps-markup-chrome-title {
+  position: absolute; left: 0; right: 0; text-align: center;
+  font-weight: 700; font-size: 15px; letter-spacing: -0.01em;
+  pointer-events: none; color: var(--ink, #E9F5F2);
 }
-.taps-markup-color.active { box-shadow: 0 0 0 2px #EE9B00; border-color: #EE9B00; }
 .taps-markup-stage {
   flex: 1; min-height: 0; overflow: auto;
-  display: grid; place-items: center; padding: 8px;
+  display: grid; place-items: start center;
+  padding: 8px 8px calc(120px + env(safe-area-inset-bottom));
   touch-action: none;
 }
-.taps-markup-canvas {
-  display: block; max-width: 100%; max-height: 100%;
+.taps-markup-layers {
+  position: relative;
+  width: min(100%, 1000px);
+  line-height: 0;
+}
+.taps-markup-board, .taps-markup-canvas {
+  display: block; width: 100%; height: auto;
   touch-action: none;
-  cursor: crosshair;
   background: #04202A;
+}
+.taps-markup-board { pointer-events: none; }
+.taps-markup-canvas {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+  background: transparent;
+}
+
+.taps-markup-dock-wrap {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  z-index: 3;
+  pointer-events: none;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: linear-gradient(180deg, rgba(0,18,25,0) 0%, rgba(0,18,25,.45) 55%, rgba(0,18,25,.72) 100%);
+}
+.taps-markup-dock-wrap > * { pointer-events: auto; }
+
+.taps-markup-trays {
+  display: flex; align-items: flex-end; justify-content: center;
+  gap: 14px;
+  padding: 0 16px 10px;
+}
+.taps-markup-tray {
+  position: relative;
+  background: rgba(8, 28, 36, 0.94);
+  border: 1px solid rgba(148, 210, 189, 0.22);
+  border-radius: 18px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.45);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 12px 14px 14px;
+  max-width: calc(100vw - 24px);
+}
+.taps-markup-tray[hidden] { display: none !important; }
+.taps-markup-tray-label {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.10em;
+  text-transform: uppercase; color: #9BB8B2;
+  margin-bottom: 8px;
+}
+.taps-markup-caret {
+  position: absolute; left: 50%; bottom: -7px;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px; height: 14px;
+  background: rgba(8, 28, 36, 0.94);
+  border-right: 1px solid rgba(148, 210, 189, 0.35);
+  border-bottom: 1px solid rgba(148, 210, 189, 0.35);
+}
+
+.taps-markup-thickness { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.taps-markup-nib {
+  flex: 1; height: 36px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(148, 210, 189, 0.18);
+  background: rgba(0, 18, 25, 0.45);
+  display: grid; place-items: center; padding: 0;
+  touch-action: manipulation;
+}
+.taps-markup-nib.active {
+  border-color: #EE9B00;
+  box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.45);
+  background: rgba(238, 155, 0, 0.12);
+}
+.taps-markup-nib i {
+  display: block; width: 70%; border-radius: 99px; background: #D8452F; pointer-events: none;
+}
+.taps-markup-nib.t1 i { height: 3px; }
+.taps-markup-nib.t2 i { height: 6px; }
+.taps-markup-nib.t3 i { height: 11px; }
+
+.taps-markup-palette {
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
+  grid-template-rows: repeat(3, 32px);
+  gap: 8px;
+  justify-content: center;
+}
+.taps-markup-swatch {
+  width: 32px; height: 32px; border-radius: 50%; cursor: pointer; padding: 0;
+  border: 2px solid rgba(233, 245, 242, 0.28);
+  touch-action: manipulation;
+}
+.taps-markup-swatch.white { border-color: rgba(233, 245, 242, 0.55); }
+.taps-markup-swatch.active { box-shadow: 0 0 0 2px #EE9B00; border-color: #EE9B00; }
+
+.taps-markup-stamps { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.taps-markup-stamp {
+  display: grid; place-items: center;
+  min-width: 40px; height: 40px; border-radius: 12px; cursor: pointer;
+  border: 1px solid rgba(148, 210, 189, 0.2);
+  background: rgba(10, 147, 150, 0.1);
+  color: var(--ink, #E9F5F2);
+  padding: 0;
+  touch-action: manipulation;
+}
+.taps-markup-stamp.pill {
+  padding: 0 9px; min-width: 0; height: 32px; border-radius: 999px;
+  font-size: 0.68rem; font-weight: 800; letter-spacing: 0.08em;
+}
+.taps-markup-stamp.call { background: #EE9B00; border-color: #EE9B00; color: #001219; }
+.taps-markup-stamp.tap { background: #2A9D8F; border-color: #2A9D8F; color: #001219; }
+.taps-markup-stamp.staff { background: #6B4E8F; border-color: #6B4E8F; color: #FFFFFF; }
+.taps-markup-stamp.active { box-shadow: 0 0 0 2px #EE9B00; }
+
+.taps-markup-staff {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin-top: 10px; max-width: 420px;
+}
+.taps-markup-staff[hidden] { display: none !important; }
+.taps-markup-staff-btn {
+  font: inherit; font-size: 0.78rem; font-weight: 700;
+  min-height: 32px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+  border: 1px solid rgba(148, 210, 189, 0.25);
+  background: rgba(0, 18, 25, 0.45); color: var(--ink, #E9F5F2);
+  touch-action: manipulation;
+}
+.taps-markup-staff-btn.active {
+  background: #6B4E8F; border-color: #6B4E8F; color: #FFFFFF;
+  box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.45);
+}
+
+.taps-markup-erase-modes { display: flex; gap: 8px; }
+.taps-markup-mode {
+  font: inherit; font-size: 0.82rem; font-weight: 700;
+  min-height: 36px; padding: 6px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(148, 210, 189, 0.22);
+  background: rgba(0, 18, 25, 0.45); color: var(--ink, #E9F5F2);
+  touch-action: manipulation;
+}
+.taps-markup-mode.active {
+  background: rgba(238, 155, 0, 0.18);
+  border-color: #EE9B00;
+  box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.45);
+  color: #FFC56B;
+}
+
+.taps-markup-dock {
+  display: flex; align-items: center; justify-content: center;
+  gap: 4px;
+  width: max-content; max-width: calc(100% - 24px);
+  margin: 0 auto 16px;
+  padding: 7px 10px 6px;
+  background: rgba(8, 28, 36, 0.94);
+  border: 1px solid rgba(148, 210, 189, 0.22);
+  border-radius: 24px;
+  box-shadow: 0 14px 44px rgba(0,0,0,.5);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  touch-action: manipulation;
+}
+.taps-markup-sep {
+  width: 1px; height: 28px;
+  background: rgba(148, 210, 189, 0.22);
+  margin: 0 6px;
+}
+.taps-markup-tile {
+  width: 64px; min-height: 50px; padding: 7px 0 5px;
+  border-radius: 15px; border: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--ink, #E9F5F2); background: transparent;
+  touch-action: manipulation;
+}
+.taps-markup-tile svg { display: block; flex-shrink: 0; }
+.taps-markup-tile-lbl {
+  font-size: 8.5px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  color: #9BB8B2; line-height: 1;
+}
+.taps-markup-tile.active {
+  background: rgba(238, 155, 0, 0.18);
+  box-shadow: 0 0 0 2px rgba(238, 155, 0, 0.55);
+  color: #FFC56B;
+}
+.taps-markup-tile.active .taps-markup-tile-lbl { color: #FFC56B; }
+.taps-markup-tile.dim { opacity: 0.38; }
+.taps-markup-color-dot {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: #D8452F;
+  border: 2px solid #E9F5F2;
+  box-shadow: 0 0 0 2px #EE9B00;
+}
+
+@media (max-width: 560px) {
+  .taps-markup-palette { grid-template-columns: repeat(8, 26px); grid-template-rows: repeat(3, 26px); gap: 6px; }
+  .taps-markup-swatch { width: 26px; height: 26px; }
+  .taps-markup-tile { width: 52px; }
+  .taps-markup-dock { gap: 2px; padding: 6px 6px 5px; }
+  .taps-markup-sep { margin: 0 3px; }
 }
 
 /* Card body readability: 17px, line-height 1.45, AA secondary, labels lighter than values.
