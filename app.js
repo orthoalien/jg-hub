@@ -31,8 +31,15 @@
       Array.from(grid.querySelectorAll(".tile")).forEach(function (tile) {
         tiles[tile.getAttribute("data-id")] = tile;
       });
+      const placed = {};
       ids.forEach(function (id) {
-        if (tiles[id]) grid.appendChild(tiles[id]);
+        if (tiles[id]) {
+          grid.appendChild(tiles[id]);
+          placed[id] = true;
+        }
+      });
+      Object.keys(tiles).forEach(function (id) {
+        if (!placed[id]) grid.appendChild(tiles[id]);
       });
     });
   }

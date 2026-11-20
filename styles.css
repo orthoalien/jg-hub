@@ -181,6 +181,7 @@ section.board h2 {
 .icon.hue { background: linear-gradient(160deg, #EE9B00, #BB3E03); }
 .icon.ring { background: linear-gradient(160deg, #005F73, #001219 85%); border: 1px solid rgba(148, 210, 189, 0.25); }
 .icon.rules { background: linear-gradient(160deg, #005F73, #001219 78%); border: 1px solid rgba(238, 155, 0, 0.55); }
+.icon.tesla { background: linear-gradient(160deg, #AE2012, #6B0F0B); }
 
 .icon.taskpro svg { stroke: #001219; }
 
