@@ -32,7 +32,12 @@
         tiles[tile.getAttribute("data-id")] = tile;
       });
       const placed = {};
-      ids.forEach(function (id) {
+      const ordered = ids.slice();
+      if (tiles["tesla-dashboards"] && ordered.indexOf("tesla-dashboards") === -1) {
+        const mateIndex = ordered.indexOf("teslamate");
+        if (mateIndex !== -1) ordered.splice(mateIndex + 1, 0, "tesla-dashboards");
+      }
+      ordered.forEach(function (id) {
         if (tiles[id]) {
           grid.appendChild(tiles[id]);
           placed[id] = true;
