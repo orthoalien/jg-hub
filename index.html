@@ -9,14 +9,21 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20261120d">
+  <link rel="stylesheet" href="styles.css?v=20261120e">
   <link rel="stylesheet" href="taps.css?v=20261120d">
 </head>
 <body>
   <div class="wrap">
     <header class="app-header">
-      <h1>JG Hub</h1>
-      <p class="tagline">Greenie's personal home screen</p>
+      <div>
+        <h1>JG Hub</h1>
+        <p class="tagline">Greenie's personal home screen</p>
+      </div>
+      <nav class="hub-switch" aria-label="Hub view">
+        <a href="https://drgreenie.com/hub?view=na">NA</a>
+        <a class="on" href="./" aria-current="page">JG</a>
+        <a href="https://drgreenie.com/hub?view=favorites">Favorites</a>
+      </nav>
     </header>
 
     <section class="board" aria-labelledby="personal-heading">

@@ -1,0 +1,88 @@
+{
+  "updated": "2026-11-20",
+  "origin": "https://jg.drgreenie.com",
+  "apps": [
+    {
+      "id": "claudio-list",
+      "name": "Claudio List",
+      "url": "https://claudio-list.netlify.app",
+      "section": "personal",
+      "icon": "claudio",
+      "color": "#0A9396"
+    },
+    {
+      "id": "jg-taskpro",
+      "name": "JG TaskPro",
+      "url": "https://jg-taskpro.netlify.app",
+      "section": "personal",
+      "icon": "taskpro",
+      "color": "#94D2BD"
+    },
+    {
+      "id": "message-hub",
+      "name": "Message Hub",
+      "url": "https://claude.ai/artifact/8k2MEf9vsKdQmnv9D8ZYKa",
+      "section": "personal",
+      "icon": "messages",
+      "color": "#EE9B00"
+    },
+    {
+      "id": "invisalign-taps",
+      "name": "iTap board",
+      "url": "https://jg.drgreenie.com/#taps",
+      "section": "personal",
+      "icon": "taps",
+      "color": "#005F73"
+    },
+    {
+      "id": "main-rules",
+      "name": "Main Rules",
+      "url": "https://jg.drgreenie.com/rules/",
+      "section": "personal",
+      "icon": "rules",
+      "color": "#005F73"
+    },
+    {
+      "id": "teslamate",
+      "name": "TeslaMate",
+      "url": "https://tesla.drgreenie.com",
+      "section": "personal",
+      "icon": "tesla",
+      "color": "#AE2012"
+    },
+    {
+      "id": "tesla-dashboards",
+      "name": "Tesla Dashboards",
+      "url": "https://dash.drgreenie.com",
+      "section": "personal",
+      "icon": "tesla-dash",
+      "color": "#C4471C"
+    },
+    {
+      "id": "hue",
+      "name": "Hue",
+      "url": "http://192.168.1.210:8787",
+      "section": "home",
+      "icon": "hue",
+      "color": "#EE9B00",
+      "caption": "home Wi-Fi only"
+    },
+    {
+      "id": "ring",
+      "name": "Ring",
+      "url": "https://account.ring.com",
+      "section": "home",
+      "icon": "ring",
+      "color": "#005F73",
+      "caption": "opens Ring"
+    },
+    {
+      "id": "jg-hub",
+      "name": "Open JG Hub",
+      "url": "https://jg.drgreenie.com/",
+      "section": "personal",
+      "icon": "jg",
+      "color": "#EE9B00"
+    }
+  ]
+}

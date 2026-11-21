@@ -42,10 +42,48 @@ body {
 
 header.app-header {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 28px;
+}
+
+.hub-switch {
+  display: inline-flex;
+  padding: 3px;
+  background: rgba(148, 210, 189, 0.12);
+  border: 1px solid rgba(148, 210, 189, 0.22);
+  border-radius: 999px;
+}
+
+.hub-switch a {
+  min-width: 96px;
+  text-align: center;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foam);
+  text-decoration: none;
+}
+
+.hub-switch a.on,
+.hub-switch a[aria-current="page"] {
+  background: var(--sunset);
+  color: var(--bg);
+}
+
+.hub-switch a:hover,
+.hub-switch a:focus-visible {
+  color: var(--sunset);
+  outline: none;
+}
+
+.hub-switch a.on:hover,
+.hub-switch a.on:focus-visible,
+.hub-switch a[aria-current="page"]:hover,
+.hub-switch a[aria-current="page"]:focus-visible {
+  color: var(--bg);
 }
 
 h1 {
